@@ -1,186 +1,108 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<title>Calculadora Volumen de Llantas</title>
-<style>
-  body { font-family: Arial, sans-serif; margin: 20px; max-width: 900px; }
-  textarea { width: 100%; height: 250px; font-family: monospace; }
-  button { margin-top: 10px; padding: 8px 12px; }
-  #status { margin-top: 10px; font-weight: bold; }
-  table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-  th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-  th { background: #f0f0f0; }
-</style>
+    <meta charset="UTF-8">
+    <title>OCR PDF Scanner</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #6dd5ed, #2193b0);
+            min-height: 100vh;
+        }
+        .container {
+            margin-top: 60px;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            padding: 32px;
+        }
+        .btn-primary {
+            background: linear-gradient(90deg, #2193b0, #6dd5ed);
+            border: none;
+        }
+        #result {
+            white-space: pre-wrap;
+            background: #f7f7f7;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <h2 class="mb-4 text-center">Escáner OCR para PDF</h2>
+        <div class="mb-3">
+            <input type="file" id="pdfInput" accept="application/pdf" class="form-control">
+        </div>
+        <button id="scanBtn" class="btn btn-primary w-100 mb-3">Escanear y extraer texto</button>
+        <div id="loading" class="text-center" style="display:none;">
+            <div class="spinner-border text-info"></div>
+            <p>Procesando...</p>
+        </div>
+        <div id="result">
+    <table id="dataTable" class="table table-bordered" style="display:none;">
+        <thead>
+            <tr>
+                <th>Folio</th>
+                <th>Fecha de Emisión</th>
+                <th>Usuario</th>
+                <th>Cantidad</th>
+                <th>Código</th>
+                <th>Descripción</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+    </div>
 
-<h2>Calculadora de Volumen de Llantas (Múltiples)</h2>
-<p>Ingrese llantas en bloques separados:<br/>
-Descripción (línea 1)<br/>
-Peso (kg) (línea 2)<br/>
-Perfil (opcional) línea 3 (se ignora para volumen)</p>
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+    <script>
+        const pdfInput = document.getElementById('pdfInput');
+        const scanBtn = document.getElementById('scanBtn');
+        const resultDiv = document.getElementById('result');
+        const loadingDiv = document.getElementById('loading');
 
-<textarea id="inputData" placeholder="Ejemplo:
-10.00-16 F2 BROADPEAK H209A (10) AGRO
-35
-11.00-20 CONVENCIONAL TORNEL T2400 (14)
-48
-"></textarea>
+        scanBtn.onclick = async () => {
+            resultDiv.textContent = '';
+            if (!pdfInput.files[0]) {
+                alert('Por favor, selecciona un archivo PDF.');
+                return;
+            }
+            loadingDiv.style.display = 'block';
 
-<button onclick="procesarLlantas()">Calcular Volúmenes y Guardar</button>
-<div id="status"></div>
+            const file = pdfInput.files[0];
+            const reader = new FileReader();
+            reader.onload = async function() {
+                const typedarray = new Uint8Array(this.result);
+                const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                let extractedText = '';
 
-<table id="resultTable" style="display:none;">
-  <thead>
-    <tr>
-      <th>Descripción</th>
-      <th>Peso (kg)</th>
-      <th>Volumen (m³)</th>
-      <th>Estado Actualización</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const viewport = page.getViewport({ scale: 2 });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
 
-<script>
-const SHEETDB_URL = "https://sheetdb.io/api/v1/lttpt3mvohen7/inventario";
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+                    const dataUrl = canvas.toDataURL();
 
-function pulgadasACm(pulgadas) {
-  return pulgadas * 2.54;
-}
-
-function calcularVolumen(anchoPulg, diamRinPulg) {
-  const anchoCm = pulgadasACm(anchoPulg);
-  const diamRinCm = pulgadasACm(diamRinPulg);
-
-  const R = (diamRinCm / 2) + (anchoCm / 2);
-  const r = anchoCm / 2;
-
-  const volumenCm3 = 2 * Math.PI * Math.PI * R * r * r;
-  return volumenCm3 / 1000000; // cm3 a metros cúbicos
-}
-
-function extraerMedidas(texto) {
-  let rxMedidas = /(\d+(\.\d+)?)([L])?[-\/](\d+(\.\d+)?)/i;
-  let rxMedidasR = /(\d+(\.\d+)?)(R)(\d+(\.\d+)?)/i;
-
-  let ancho = null, diam = null;
-
-  let match = texto.match(rxMedidas);
-  if(match) {
-    ancho = parseFloat(match[1]);
-    diam = parseFloat(match[4]);
-  } else {
-    match = texto.match(rxMedidasR);
-    if(match) {
-      ancho = parseFloat(match[1]);
-      diam = parseFloat(match[4]);
-    }
-  }
-  return {ancho, diam};
-}
-
-async function actualizarVolumenEnSheetDB(descripcion, volumen) {
-  try {
-    const body = {
-      data: [
-        {
-          volumen: volumen.toFixed(6)
-        }
-      ]
-    };
-
-    const url = `${SHEETDB_URL}?descripcion=${encodeURIComponent(descripcion)}`;
-
-    const response = await fetch(url, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
-
-    if (!response.ok) {
-      const msg = await response.text();
-      console.error("Error actualizar SheetDB:", msg);
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error("Fetch error actualizar SheetDB:", error);
-    return false;
-  }
-}
-
-async function procesarLlantas() {
-  const statusDiv = document.getElementById('status');
-  statusDiv.textContent = "Procesando llantas...";
-
-  const text = document.getElementById('inputData').value.trim();
-  let lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-  const resultados = [];
-  const tablaCuerpo = document.querySelector('#resultTable tbody');
-  tablaCuerpo.innerHTML = '';
-  document.getElementById('resultTable').style.display = 'table';
-
-  // Procesar bloques de 2 o 3 líneas por llanta
-  for(let i=0; i < lines.length;) {
-    const desc = lines[i++] || "";
-    const pesoStr = lines[i++] || "";
-    const peso = parseFloat(pesoStr);
-
-    // Leer línea perfil si existe, la ignoramos para cálculo pero saltamos si es válida
-    if(i < lines.length) {
-      const posiblePerfil = parseInt(lines[i]);
-      if(!isNaN(posiblePerfil) && posiblePerfil >= 20 && posiblePerfil <= 100) {
-        i++;
-      }
-    }
-
-    if(!desc || isNaN(peso)) continue;
-
-    const {ancho, diam} = extraerMedidas(desc);
-    let volumen = null;
-    let status = "Medidas inválidas";
-
-    if(ancho !== null && diam !== null) {
-      volumen = calcularVolumen(ancho, diam);
-      status = "Calculando...";
-      resultados.push({desc, peso, volumen, status});
-    } else {
-      resultados.push({desc, peso, volumen: null, status});
-    }
-  }
-
-  // Mostrar tabla preliminar
-  tablaCuerpo.innerHTML = resultados.map(({desc, peso, volumen, status}) => `
-    <tr>
-      <td>${desc}</td>
-      <td>${peso}</td>
-      <td>${volumen !== null ? volumen.toFixed(6) : 'N/A'}</td>
-      <td>${status}</td>
-    </tr>
-  `).join('');
-
-  // Actualizar SheetDB uno por uno, actualizar tabla fila a fila
-  for(let idx = 0; idx < resultados.length; idx++) {
-    const res = resultados[idx];
-    if(res.volumen !== null) {
-      statusDiv.textContent = `Actualizando llanta ${idx + 1} de ${resultados.length}...`;
-      const ok = await actualizarVolumenEnSheetDB(res.desc, res.volumen);
-      resultados[idx].status = ok ? "Actualizado" : "Error al actualizar";
-
-      // Actualizar tabla fila a fila
-      const fila = tablaCuerpo.children[idx];
-      fila.cells[3].textContent = resultados[idx].status;
-    }
-  }
-
-  statusDiv.textContent = "Proceso completado.";
-}
-</script>
-
+                    const { data: { text } } = await Tesseract.recognize(dataUrl, 'spa', {
+                        logger: m => {
+                            loadingDiv.innerHTML = `<div class="spinner-border text-info"></div><p>${m.status}: ${Math.round(m.progress*100)}%</p>`;
+                        }
+                    });
+                    extractedText += `--- Página ${pageNum} ---\n${text}\n\n`;
+                }
+                loadingDiv.style.display = 'none';
+                resultDiv.textContent = extractedText;
+            };
+            reader.readAsArrayBuffer(file);
+        };
+    </script>
 </body>
 </html>
