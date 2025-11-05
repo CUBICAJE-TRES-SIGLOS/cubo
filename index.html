@@ -2191,19 +2191,45 @@ async function apartarUnidad(economico) {
 // Función para actualizar la tabla de unidades disponibles
 async function actualizarUnidadesDisponibles() {
     const tablaUnidades = document.getElementById('tablaUnidadesDisponibles');
-    let datosFlota = obtenerDatosFlota(); // Función que obtiene los datos de la pestaña de flota
+    if (!tablaUnidades) return;
+
+    // Obtener los totales actuales del bloque
+    const totalVolumen = parseFloat(document.getElementById('totalVolumenLlantas')?.textContent || '0');
+    const totalPeso = parseFloat(document.getElementById('totalPesoLlantas')?.textContent || '0');
+
+    // Si no hay llantas agregadas, no mostrar unidades
+    if (totalVolumen === 0 && totalPeso === 0) {
+        tablaUnidades.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center">
+                    <div class="alert alert-info mb-0">
+                        Agregue llantas al bloque para ver las unidades disponibles
+                    </div>
+                </td>
+            </tr>`;
+        return;
+    }
+
+    let datosFlota = obtenerDatosFlota();
     
     // Filtrar las unidades que ya están en apartados
     if (Array.isArray(pedidosApartados) && pedidosApartados.length > 0) {
         const economicosApartados = pedidosApartados.map(pedido => 
             (pedido.Económico || pedido.economico || '').toString().toLowerCase()
         );
-        
-        // Filtrar las unidades que NO están en apartados
         datosFlota = datosFlota.filter(unidad => 
             !economicosApartados.includes((unidad.economico || '').toString().toLowerCase())
         );
     }
+
+    // Filtrar unidades que pueden llevar la carga
+    datosFlota = datosFlota.filter(unidad => {
+        const capacidadVolumen = parseFloat(unidad.capacidadVolumen) || 0;
+        const capacidadPeso = parseFloat(unidad.capacidadPeso) || 0;
+        
+        // La unidad debe tener capacidad suficiente tanto en volumen como en peso
+        return capacidadVolumen >= totalVolumen && capacidadPeso >= totalPeso;
+    });
     
     tablaUnidades.innerHTML = '';
     
