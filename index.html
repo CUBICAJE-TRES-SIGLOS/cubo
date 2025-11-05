@@ -5,6 +5,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
     <!-- SweetAlert2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <meta charset="UTF-8" />
@@ -665,7 +666,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Pedidos Apartados -->
 <div id="pedidos-Apartados" class="tabcontent">
-    <h3>Pedidos Apartados</h3>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>Pedidos Apartados</h3>
+        <button class="btn btn-primary" onclick="generarPDFPedidosApartados()">
+            <i class="bi bi-file-pdf-fill me-2"></i>Imprimir Reporte
+        </button>
+    </div>
     <div class="card">
         <div class="card-body">
             <!-- Agregar barra de búsqueda -->
@@ -1210,6 +1216,59 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <!-- Las unidades disponibles se insertarán aquí dinámicamente -->
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sección de Distribución Múltiple -->
+            <div class="accordion mb-3" id="acordeonDistribucionMultiple">
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button" type="button" 
+                                data-bs-toggle="collapse" 
+                                data-bs-target="#collapseDistribucionMultiple" 
+                                aria-expanded="false" 
+                                aria-controls="collapseDistribucionMultiple">
+                            <div class="d-flex align-items-center w-100">
+                                <i class="bi bi-truck-flatbed me-2"></i>
+                                <span class="me-auto">Distribución Sugerida Multi-Unidad</span>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="collapseDistribucionMultiple" 
+                         class="accordion-collapse collapse" 
+                         data-bs-parent="#acordeonDistribucionMultiple">
+                        <div class="accordion-body">
+                            <div class="alert alert-info">
+                                <h5><i class="bi bi-info-circle"></i> Distribución Sugerida del Pedido</h5>
+                                <p>Este pedido requiere distribución en múltiples unidades para óptimo manejo:</p>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Unidad</th>
+                                            <th>Económico</th>
+                                            <th>Llantas Est.</th>
+                                            <th>Volumen</th>
+                                            <th>Peso</th>
+                                            <th>Eficiencia</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tablaDistribucionSugerida">
+                                        <!-- La distribución se insertará aquí dinámicamente -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="d-flex justify-content-center mt-3" id="botonesDistribucionMultiple">
+                                <button class="btn btn-warning btn-lg" onclick="apartarDistribucionCompleta()">
+                                    <i class="bi bi-box-arrow-right"></i> Apartar Distribución Completa
+                                </button>
+                            </div>
+                            <div class="alert alert-warning mt-3">
+                                <i class="bi bi-info-circle"></i> Al apartar la distribución, se reservarán todas las unidades mostradas para este pedido.
                             </div>
                         </div>
                     </div>
@@ -2196,6 +2255,15 @@ async function actualizarUnidadesDisponibles() {
     // Obtener los totales actuales del bloque
     const totalVolumen = parseFloat(document.getElementById('totalVolumenLlantas')?.textContent || '0');
     const totalPeso = parseFloat(document.getElementById('totalPesoLlantas')?.textContent || '0');
+
+    // Obtener unidades disponibles
+    let unidadesDisponibles = obtenerUnidadesFlota();
+    
+    // Verificar si alguna unidad puede manejar el pedido sola
+    const unidadApta = unidadesDisponibles.find(u => 
+        parseFloat(u.capacidadVolumen) >= totalVolumen && 
+        parseFloat(u.capacidadPeso) >= totalPeso
+    );
 
     // Si no hay llantas agregadas, no mostrar unidades
     if (totalVolumen === 0 && totalPeso === 0) {
@@ -9110,6 +9178,206 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
             <div class="alert alert-danger">
                 <i class="bi bi-exclamation-triangle"></i> Error al agregar el bloque: ${error.message}
             </div>`;
+    }
+}
+
+async function generarPDFPedidosApartados() {
+    // Mostrar indicador de carga
+    Swal.fire({
+        title: 'Generando PDF...',
+        text: 'Por favor espere...',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
+    try {
+        // Crear un contenedor temporal para el PDF
+        const tempDiv = document.createElement('div');
+        tempDiv.className = 'pdf-container';
+        tempDiv.style.padding = '20px';
+        tempDiv.style.backgroundColor = 'white';
+        tempDiv.style.width = '100%';
+        tempDiv.style.maxWidth = '800px';
+        tempDiv.style.margin = '0 auto';
+
+        // Crear el encabezado
+        const header = document.createElement('div');
+        header.className = 'pdf-header';
+        
+        // Crear el título con la fecha
+        const today = new Date();
+        const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        const diaSemana = dias[today.getDay()].toLowerCase();
+        const dia = String(today.getDate()).padStart(2, '0');
+        const mes = String(today.getMonth() + 1).padStart(2, '0');
+        const año = today.getFullYear();
+        const fechaFormateada = `${dia}/${mes}/${año}`;
+        
+        const title = document.createElement('h3');
+        title.className = 'pdf-title';
+        title.textContent = `Logística-${diaSemana}-${fechaFormateada}`;
+        title.style.marginBottom = '20px';
+        title.style.textAlign = 'center';
+        tempDiv.appendChild(title);
+
+        // Asegurar que todos los datos estén visibles
+        const searchInput = document.querySelector('#pedidos-Apartados input[type="search"]');
+        const originalSearchValue = searchInput ? searchInput.value : '';
+        if (searchInput) {
+            searchInput.value = '';
+            // Forzar actualización de la tabla
+            actualizarTablaPedidosApartados('');
+        }
+
+        // Obtener la tabla original
+        const originalTable = document.querySelector('#pedidos-Apartados table');
+        if (!originalTable) {
+            throw new Error('No se encontró la tabla de pedidos apartados');
+        }
+
+        // Crear nueva tabla con solo las columnas deseadas
+        const newTable = document.createElement('table');
+        newTable.className = 'pdf-table';
+        header.appendChild(title);
+        tempDiv.appendChild(header);
+        
+        // Copiar solo las columnas que queremos
+        const columnsToKeep = ['Fecha', 'Unidad', 'Económico', 'Nombre', 'Llantas'];
+        
+        // Crear el encabezado
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        columnsToKeep.forEach(colName => {
+            const th = document.createElement('th');
+            th.textContent = colName;
+            th.style.backgroundColor = '#f8f9fa';
+            th.style.border = '1px solid #dee2e6';
+            th.style.padding = '8px';
+            th.style.textAlign = 'center';
+            th.style.fontWeight = 'bold';
+            headerRow.appendChild(th);
+        });
+        thead.appendChild(headerRow);
+        newTable.appendChild(thead);
+
+        // Crear el cuerpo de la tabla
+        const tbody = document.createElement('tbody');
+        const rows = originalTable.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const newRow = document.createElement('tr');
+            const cells = row.cells;
+            columnsToKeep.forEach((colName, index) => {
+                const cellIndex = Array.from(originalTable.querySelectorAll('th'))
+                    .findIndex(th => th.textContent.trim() === colName);
+                if (cellIndex !== -1 && cells[cellIndex]) {
+                    const td = document.createElement('td');
+                    td.textContent = cells[cellIndex].textContent;
+                    td.style.border = '1px solid #dee2e6';
+                    td.style.padding = '8px';
+                    td.style.textAlign = 'center';
+                    newRow.appendChild(td);
+                }
+            });
+            tbody.appendChild(newRow);
+        });
+        newTable.appendChild(tbody);
+        
+        tempDiv.appendChild(newTable);
+
+        // Agregar estilos CSS para el PDF
+        const style = document.createElement('style');
+        style.textContent = `
+            @media print {
+                .pdf-container {
+                    font-family: Arial, sans-serif;
+                    color: #333;
+                }
+                .pdf-header {
+                    background: linear-gradient(to right, #f8f9fa, #e9ecef);
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin-bottom: 20px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+                .pdf-title {
+                    color: #2c3e50;
+                    font-size: 24px;
+                    text-align: center;
+                    margin: 0;
+                }
+                .pdf-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    background: white;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                }
+                .pdf-table th {
+                    background: linear-gradient(to bottom, #4a90e2, #357abd);
+                    color: white;
+                    font-weight: bold;
+                    padding: 12px 8px;
+                    text-align: center;
+                    border: 1px solid #2c3e50;
+                }
+                .pdf-table td {
+                    padding: 10px 8px;
+                    border: 1px solid #dee2e6;
+                    text-align: center;
+                }
+                .pdf-table tr:nth-child(even) {
+                    background-color: #f8f9fa;
+                }
+                .pdf-table tr:hover {
+                    background-color: #f2f2f2;
+                }
+            }
+        `;
+        tempDiv.appendChild(style);
+        
+        // Configuración para html2pdf
+        const opt = {
+            margin: [0.7, 0.5],
+            filename: `logistica_${dia}${mes}${año}.pdf`,
+            image: { type: 'jpeg', quality: 1 },
+            html2canvas: { 
+                scale: 3,
+                logging: true,
+                letterRendering: true,
+                useCORS: true
+            },
+            jsPDF: { 
+                unit: 'in', 
+                format: 'letter', 
+                orientation: 'portrait'
+            }
+        };
+
+        // Generar el PDF con la tabla filtrada
+        await html2pdf().set(opt).from(tempDiv).save();
+
+        // Restaurar el estado original de la búsqueda
+        if (searchInput && originalSearchValue) {
+            searchInput.value = originalSearchValue;
+            actualizarTablaPedidosApartados(originalSearchValue);
+        }
+
+        // Mostrar mensaje de éxito
+        Swal.fire({
+            icon: 'success',
+            title: '¡PDF generado con éxito!',
+            text: 'El archivo se ha descargado correctamente.',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    } catch (error) {
+        // Mostrar mensaje de error
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Hubo un problema al generar el PDF: ' + error.message
+        });
     }
 }
 </script>
