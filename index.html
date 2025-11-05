@@ -2157,7 +2157,19 @@ async function apartarUnidad(economico) {
 // Función para actualizar la tabla de unidades disponibles
 async function actualizarUnidadesDisponibles() {
     const tablaUnidades = document.getElementById('tablaUnidadesDisponibles');
-    const datosFlota = obtenerDatosFlota(); // Función que obtiene los datos de la pestaña de flota
+    let datosFlota = obtenerDatosFlota(); // Función que obtiene los datos de la pestaña de flota
+    
+    // Filtrar las unidades que ya están en apartados
+    if (Array.isArray(pedidosApartados) && pedidosApartados.length > 0) {
+        const economicosApartados = pedidosApartados.map(pedido => 
+            (pedido.Económico || pedido.economico || '').toString().toLowerCase()
+        );
+        
+        // Filtrar las unidades que NO están en apartados
+        datosFlota = datosFlota.filter(unidad => 
+            !economicosApartados.includes((unidad.economico || '').toString().toLowerCase())
+        );
+    }
     
     tablaUnidades.innerHTML = '';
     
