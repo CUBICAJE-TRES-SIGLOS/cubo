@@ -1777,10 +1777,10 @@ document.addEventListener('DOMContentLoaded', function() {
                        <button class="nav-link active" id="traspasos-normales-tab" data-bs-toggle="tab" data-bs-target="#traspasosNormales" type="button" role="tab">
                            Traspasos
                        </button>
-                   </li>
+                   </li>q
                    <li class="nav-item" role="presentation">
                        <button class="nav-link" id="traspasos-especiales-tab" data-bs-toggle="tab" data-bs-target="#traspasosEspeciales" type="button" role="tab">
-                           traspasos
+                           Facturas
                        </button>
                    </li>
                </ul>
@@ -1984,6 +1984,15 @@ async function buscarBloquePorFolio() {
             b.nombre === folio || (b.datos[0]?.Folio === folio)
         );
 
+        // Buscar en "Escaneados especiales" (Facturas)
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Escaneados especiales');
+        const escaneados = await resEscaneados.json();
+        const escaneadosDelFolio = escaneados.filter(r => 
+            r.Nombre?.toLowerCase() === folio.toLowerCase() ||
+            r.nombre?.toLowerCase() === folio.toLowerCase() ||
+            r.Folio?.toLowerCase() === folio.toLowerCase()
+        );
+
         // Buscar en la hoja "reservados"
         const resReservados = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=reservados');
         const reservados = await resReservados.json();
@@ -2002,6 +2011,33 @@ async function buscarBloquePorFolio() {
                 <div class="alert alert-success mt-2">
                     Bloque encontrado en traspasos: ${bloque.nombre}<br>
                     Productos: ${bloque.datos.length}
+                </div>
+            `;
+        } else if (escaneadosDelFolio.length > 0) {
+            div.innerHTML = `
+                <div class="alert alert-info mt-2">
+                    Bloque encontrado en Facturas (Escaneados especiales): ${folio}<br>
+                    Productos: ${escaneadosDelFolio.length}<br>
+                    <table class="table table-bordered mt-2">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                                <th>Línea</th>
+                                <th>Cantidad</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${escaneadosDelFolio.map(item => `
+                                <tr>
+                                    <td>${item.Código || item.codigo || ''}</td>
+                                    <td>${item.Descripción || item.descripcion || ''}</td>
+                                    <td>${item.Línea || item.linea || ''}</td>
+                                    <td>${item.Cantidad || item.cantidad || ''}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
                 </div>
             `;
         } else if (reservadosAgrupados[folio]) {
@@ -2033,7 +2069,7 @@ async function buscarBloquePorFolio() {
                 </div>
             `;
         } else if (folio) { // Solo mostrar mensaje de no encontrado si se ingresó un folio
-            div.innerHTML = '<div class="alert alert-danger mt-2">No se encontró ningún bloque con ese folio.</div>';
+            div.innerHTML = '<div class="alert alert-danger mt-2">No se encontró ningún bloque con ese folio en traspasos, facturas o reservados.</div>';
         }
     } catch (error) {
         console.error('Error al buscar:', error);
