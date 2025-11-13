@@ -7925,20 +7925,137 @@ async function calcularVolumenLlanta(descripcion) {
         }
     }
 
-    return volumen.toFixed(4);
+    // Devolver valor numérico con 4 decimales
+    return Number((volumen || 0).toFixed(4));
+}
+
+// Función para calcular el peso estimado de una llanta a partir de la descripción
+async function calcularPesoLlanta(descripcion) {
+    const desc = (descripcion || '').toUpperCase();
+    // Reutilizar la lógica y patrones de calcularPesosInventario pero devolviendo el peso para un solo producto
+    let peso = 0;
+
+    const patrones = [
+        {
+            regex: /^(\d{3})[\s\/]?(\d{2})[\s\/]?R(\d{2})/i,
+            calc: (m, d = '') => {
+                const ancho = Number(m[1]);
+                const perfil = Number(m[2]);
+                const rin = Number(m[3]);
+                const base = (ancho * perfil/100 * rin/25.4) * 0.2;
+                let factor = 1.0;
+                if (d.includes('SUV') || d.includes('CAMIONETA')) factor *= 1.2;
+                if (d.includes('PERFOR')) factor *= 1.1;
+                if (d.includes('EFFICIENT')) factor *= 0.95;
+                if (d.includes('AT') || d.includes('ALL TERRAIN')) factor *= 1.15;
+                if (d.includes('MT') || d.includes('MUD TERRAIN')) factor *= 1.25;
+                if (d.includes('SPORT') || d.includes('RACING')) factor *= 1.1;
+                return base * factor;
+            }
+        },
+        {
+            regex: /^(\d{2})R(\d{2}\.\d*)/i,
+            calc: (m) => {
+                const ancho = Number(m[1]) * 25.4;
+                const rin = Number(m[2]);
+                const base = (ancho * 0.8 * rin/25.4) * 0.45;
+                return base;
+            }
+        },
+        {
+            regex: /^(\d+\.\d+)-(\d{2})/i,
+            calc: (m, d = '') => {
+                const ancho = Number(m[1]) * 25.4;
+                const rin = Number(m[2]);
+                const base = (ancho * rin/25.4) * 0.4;
+                return base * (d.includes('CONVENCIONAL') ? 1.2 : 1);
+            }
+        },
+        {
+            regex: /^(\d{2,3})[Xx](\d{2}\.\d*)[\s-]?R(\d{2})/i,
+            calc: (m, d = '') => {
+                const ancho = Number(m[1]);
+                const perfil = Number(m[2]);
+                const rin = Number(m[3]);
+                const base = (ancho * perfil/100 * rin/25.4) * 0.3;
+                let factor = 1.3;
+                if (d.includes('MT') || d.includes('MUD TERRAIN')) factor *= 1.25;
+                if (d.includes('AT') || d.includes('ALL TERRAIN')) factor *= 1.15;
+                if (d.includes('HEAVY DUTY') || d.includes('HD')) factor *= 1.2;
+                if (d.includes('REFORZADA') || d.includes('REINFORCED')) factor *= 1.1;
+                return base * factor;
+            }
+        },
+        {
+            regex: /^(\d+(?:\.\d+)?)-(\d+\.?\d*)\s*(IND|AG)?/i,
+            calc: (m, d = '') => {
+                const ancho = Number(m[1]) * 25.4;
+                const rin = Number(m[2]);
+                const base = ancho * rin/25.4 * 0.6;
+                let factorBase = 1.2;
+                if (d.includes('MINERIA') || d.includes('MINING')) factorBase = 1.6;
+                else if (d.includes('AG') || d.includes('AGRICOLA') || d.includes('FARM')) factorBase = 1.4;
+                return base * factorBase;
+            }
+        }
+    ];
+
+    // Aplicar patrones
+    for (const patron of patrones) {
+        const m = desc.match(patron.regex);
+        if (m) {
+            peso = patron.calc(m, desc);
+            break;
+        }
+    }
+
+    // Aplicar factores adicionales simples (coincidentes con calcularPesosInventario)
+    const factoresAjuste = {
+        'XL': 1.15, 'RF': 1.20, 'PR': 1.10, 'SKS': 1.30, 'L5': 1.40,
+        'SOLID': 2.0, 'HT': 1.05, 'AT': 1.15, 'MT': 1.25, 'TRACCION': 1.2,
+        'DIRECCION': 1.1, 'COMERCIAL': 1.3
+    };
+
+    for (const clave of Object.keys(factoresAjuste)) {
+        if (desc.includes(clave)) peso *= factoresAjuste[clave];
+    }
+
+    // Redondear a 2 decimales
+    peso = Math.round((peso || 0) * 100) / 100;
+    return peso;
 }
 
 // Función para agregar productos nuevos al inventario
 async function agregarProductosNuevosAlInventario(productos) {
     try {
-        const datosParaGuardar = productos.map(p => ({
-            clave: p.Codigo,
-            descripcion: p.Descripcion,
-            linea: determinarTipoLlanta(p.Descripcion),
-            peso: '',  // Se deja vacío para llenado manual posterior
-            volumen: p.Volumen,
-            valor: ''  // Se deja vacío para llenado manual posterior
-        }));
+        const datosParaGuardar = [];
+        for (const p of productos) {
+            const desc = (p.Descripcion || p.Descripcion || '').toString().trim();
+            // Calcular volumen y peso automáticamente
+            let volumenCalc = 0;
+            let pesoCalc = '';
+            try {
+                volumenCalc = await calcularVolumenLlanta(desc);
+            } catch (e) {
+                console.warn('No se pudo calcular volumen para:', desc, e);
+                volumenCalc = 0;
+            }
+            try {
+                pesoCalc = await calcularPesoLlanta(desc);
+            } catch (e) {
+                console.warn('No se pudo calcular peso para:', desc, e);
+                pesoCalc = '';
+            }
+
+            datosParaGuardar.push({
+                clave: p.Codigo,
+                descripcion: p.Descripcion,
+                linea: determinarTipoLlanta(p.Descripcion),
+                peso: pesoCalc,
+                volumen: volumenCalc,
+                valor: ''
+            });
+        }
 
         const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58', {
             method: 'POST',
@@ -9564,29 +9681,31 @@ async function agregarNuevosProductosAlInventario(productos) {
             
             for (const producto of lote) {
                 try {
-                    const desc = producto.Descripción?.trim().toUpperCase();
+                    const desc = (producto.Descripción || producto.Descripcion || '').toString().trim();
                     if (!desc) continue;
 
-                    // Calcular volumen basado en la descripción
-                    let volumen = 0;
-                    const medidasMatch = desc.match(/(\d+)[\/\s]?(?:x|\/)?(\d+)?[\/\s]?[R]?(\d+\.?\d*)/);
-                    
-                    if (medidasMatch) {
-                        const ancho = Number(medidasMatch[1]) * 25.4 / 1000;
-                        const perfil = medidasMatch[2] ? Number(medidasMatch[2])/100 : 0.80;
-                        const rin = Number(medidasMatch[3]) * 0.0254;
-                        
-                        const alturaFlanco = ancho * perfil;
-                        const diametroExterno = rin + (2 * alturaFlanco);
-                        volumen = Math.PI * Math.pow(diametroExterno/2, 2) * ancho * 1.05;
+                    // Calcular volumen y peso usando funciones centrales
+                    let volumenCalc = 0;
+                    let pesoCalc = 0;
+                    try {
+                        volumenCalc = await calcularVolumenLlanta(desc);
+                    } catch (e) {
+                        console.warn('Error calculando volumen para', desc, e);
+                        volumenCalc = 0;
+                    }
+                    try {
+                        pesoCalc = await calcularPesoLlanta(desc);
+                    } catch (e) {
+                        console.warn('Error calculando peso para', desc, e);
+                        pesoCalc = 0;
                     }
 
                     productosValidos.push({
-                        clave: producto.Código?.trim(),
+                        clave: producto.Código?.toString().trim(),
                         descripcion: desc,
                         linea: determinarTipoLlanta(desc),
-                        peso: '', // Para llenado manual
-                        volumen: volumen.toFixed(4),
+                        peso: Number(pesoCalc) || 0,
+                        volumen: Number(volumenCalc) || 0,
                         valor: '' // Para llenado manual
                     });
 
