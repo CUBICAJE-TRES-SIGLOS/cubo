@@ -564,7 +564,7 @@
 // Función para cargar las descripciones de llantas
 async function cargarDescripcionesLlantas() { 
     try {
-        const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Apartados');
+        const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Apartados');
         if (!response.ok) {
             throw new Error('Error al cargar datos de llantas');
         }
@@ -579,6 +579,7 @@ async function cargarDescripcionesLlantas() {
 async function inicializarAplicacion() {
     try {
         await cargarDatosDesdeSheetDB();
+        await cargarReservasDePendientes();
         console.log('Datos cargados correctamente');
     } catch (error) {
         console.error('Error al inicializar la aplicación:', error);
@@ -912,6 +913,8 @@ document.addEventListener('DOMContentLoaded', function() {
             <input type="text" id="inputPedidoNumEconomico" oninput="llenarDatosCamionPedido()" placeholder="Ingrese número económico" />
         </div>                
         <div id="datosCamionPedido" style="margin-top:10px; font-weight:bold; min-height: 50px;"></div>
+        <!-- Contenedor para mostrar camiones con pedidos pendientes (multi-cliente) -->
+        <div id="pendientesCamion" style="margin-top:10px;"></div>
         <!-- Reemplazar la sección actual de verificación rápida con esto -->
         <div style="margin-top:10px;">
         <button class="btn btn-info" onclick="toggleVerificacionRapida()">
@@ -923,7 +926,7 @@ document.addEventListener('DOMContentLoaded', function() {
                <div class="card-header">
                    <h5>Verificación Rápida de Capacidad</h5>
               </div>
-              <div class="card-body">
+              <div class="card-body">             
                   <div class="row">
                       <div class="col-md-3">
                           <label>Cantidad</label>
@@ -1590,7 +1593,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('Obteniendo unidades disponibles...');
                     try {
                         // Obtener los datos de la hoja de flota
-                        const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Flota');
+                        const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Flota');
                         const datosFlota = await response.json();
                         
                         console.log('Datos de flota obtenidos:', datosFlota);
@@ -1832,8 +1835,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <div id="facturaGroupsContainer"></div>
                             </div>
                         </div>
-                    </div>
-
+                    </div>     
+                
                     <!-- Pestaña 2: Nuevo sistema -->
                     <!-- Pestaña 2: Facturas Especiales -->
                     <div class="tab-pane fade" id="facturasEspeciales">
@@ -1924,7 +1927,7 @@ function iniciarActualizacionesAutomaticas() {
 // Y mover este código al final del archivo
 document.addEventListener('DOMContentLoaded', () => {
     iniciarActualizacionesAutomaticas();
-    
+        
     // Restaurar funcionalidad de pestañas
     const tablinks = document.querySelectorAll('.tablink');
     tablinks.forEach(button => {
@@ -2023,7 +2026,7 @@ async function buscarBloquePorFolio() {
         );
 
         // Buscar en la hoja "reservados"
-        const resReservados = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=reservados');
+        const resReservados = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=reservados');
         const reservados = await resReservados.json();
         
         // Agrupar reservados por nombre
@@ -2116,7 +2119,7 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
 
         // 2. Buscar en escaneados especiales
         console.log("Buscando en escaneados especiales...");
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Escaneados especiales');
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         
         const escaneadosDelFolio = escaneados.filter(r => 
@@ -2146,7 +2149,7 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
 
         // 4. Buscar en reservados como última opción
         console.log("Buscando en reservados...");
-        const resReservados = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=reservados');
+        const resReservados = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=reservados');
         const reservados = await resReservados.json();
         const reservadosDelFolio = reservados.filter(r => 
             r.nombre?.toLowerCase() === folio
@@ -2244,7 +2247,7 @@ async function buscarYAgregarBloque() {
         }
 
         // 2. Buscar en escaneados especiales
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Escaneados especiales');
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
@@ -2265,7 +2268,7 @@ async function buscarYAgregarBloque() {
         }
 
         // 4. Buscar en reservados
-        const resReservados = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=reservados');
+        const resReservados = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=reservados');
         const reservados = await resReservados.json();
         const reservadosDelFolio = reservados.filter(r => 
             r.nombre?.toLowerCase() === folio
@@ -2348,7 +2351,7 @@ async function buscarBloqueEnModo() {
         }
 
         // 2. Buscar en escaneados especiales
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Escaneados especiales');
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
@@ -2598,7 +2601,7 @@ async function apartarUnidad(economico) {
             };
 
             // Enviar a SheetDB
-            const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -2811,7 +2814,7 @@ async function agregarBloqueEnModo(continuarAgregando = false) {
             llantasParaAgregar = llantasParaAgregar.concat(facturasRecientes);
         }
 
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Escaneados especiales');
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
@@ -3314,7 +3317,7 @@ async function procesarBloqueFacturas(datos) {
     // ---------- Funciones para cargar datos ---------
     async function fetchInventario() {
         try {
-            const res = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6');
+            const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb');
             if (!res.ok) throw new Error('Error al cargar inventario');
             inventario = await res.json();
             renderInventario();
@@ -3326,7 +3329,7 @@ async function procesarBloqueFacturas(datos) {
     }
     async function fetchFlota() {
         try {
-            const res = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=flota');
+            const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=flota');
             if (!res.ok) throw new Error('Error al cargar flota');
             flota = await res.json();
             renderFlota();
@@ -3341,7 +3344,7 @@ async function procesarBloqueFacturas(datos) {
     async function fetchPedidosApartados() {
         try {
             // Añadir parámetro timestamp para evitar respuestas cacheadas
-            const url = `https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Apartados&t=${Date.now()}`;
+            const url = `https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Apartados&t=${Date.now()}`;
             const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`Error al cargar pedidos Apartados: ${response.status}`);
@@ -3369,7 +3372,7 @@ async function procesarBloqueFacturas(datos) {
     }
     async function cargarReservas() {
     try {
-        const res = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=reservados');
+        const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=reservados');
         if (!res.ok) throw new Error('Error al cargar reservas');
         const reservas = await res.json();
         return reservas;
@@ -3680,7 +3683,7 @@ async function calcularPesosInventario() {
                     peso = Math.round(peso * 100) / 100; // Redondeo a 2 decimales
 
                     try {
-                        const res = await fetch(`https://sheetdb.io/api/v1/bmea54x58prt6/clave/${llanta.clave}`, {
+                        const res = await fetch(`https://sheetdb.io/api/v1/tgq1mb2nw7zgb/clave/${llanta.clave}`, {
                             method: 'PATCH',
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({ data: { peso: peso } })
@@ -3766,7 +3769,7 @@ async function calcularPesosInventario() {
    async function eliminarLlanta(clave) {
      if (!confirm('¿Seguro que deseas eliminar esta llanta?')) return;
      try {
-       const res = await fetch(`https://sheetdb.io/api/v1/bmea54x58prt6/clave/${clave}`, {
+       const res = await fetch(`https://sheetdb.io/api/v1/tgq1mb2nw7zgb/clave/${clave}`, {
          method: 'DELETE'
       });
       if (!res.ok) throw new Error('No se pudo eliminar');
@@ -3805,7 +3808,7 @@ async function guardarEdicionLlanta(clave) {
     };
 
     try {
-        const res = await fetch(`https://sheetdb.io/api/v1/bmea54x58prt6/clave/${clave}`, {
+        const res = await fetch(`https://sheetdb.io/api/v1/tgq1mb2nw7zgb/clave/${clave}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: nuevosDatos })
@@ -4023,7 +4026,7 @@ async function calcularVolumenInventario() {
                 const nuevoVolumen = volumen_m3.toFixed(4);
 
                 try {
-                    const res = await fetch(`https://sheetdb.io/api/v1/bmea54x58prt6/clave/${llanta.clave}`, {
+                    const res = await fetch(`https://sheetdb.io/api/v1/tgq1mb2nw7zgb/clave/${llanta.clave}`, {
                         method: 'PATCH',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ data: { volumen: nuevoVolumen } })
@@ -4164,7 +4167,7 @@ function searchInventario() {
     };
 
     try {
-        const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6', {
+        const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -4256,7 +4259,7 @@ function searchInventario() {
      async function eliminarCamion(economico) {
        if (!confirm('¿Seguro que deseas eliminar este camión?')) return;
        try {
-         const res = await fetch(`https://sheetdb.io/api/v1/bmea54x58prt6/economico/${economico}?sheet=flota`, {
+         const res = await fetch(`https://sheetdb.io/api/v1/tgq1mb2nw7zgb/economico/${economico}?sheet=flota`, {
            method: 'DELETE'
          });
          if (!res.ok) throw new Error('No se pudo eliminar');
@@ -4290,7 +4293,7 @@ function searchInventario() {
         volumen: document.getElementById('editCamionVolumen').value
       };
       try {
-        const res = await fetch(`https://sheetdb.io/api/v1/bmea54x58prt6/economico/${economico}?sheet=flota`, {
+        const res = await fetch(`https://sheetdb.io/api/v1/tgq1mb2nw7zgb/economico/${economico}?sheet=flota`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ data: nuevosDatos })
@@ -4346,7 +4349,7 @@ function searchInventario() {
         };
 
         try {
-            const res = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=flota', {
+            const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=flota', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ data: nuevoDato })
@@ -4389,8 +4392,8 @@ function searchInventario() {
         'AUTO': { volumen: 0.047, peso: 7},
         'SUV_CAMIONETA': { volumen: 0.060, peso: 12.5 },
         'COMERCIAL_LIGERO': { volumen: 0.120, peso: 25 },
-        'PESADO': { volumen: 0.280, peso: 50 },
-        'AGRICOLA_MINERO': { volumen: 0.150, peso: 80 },
+        'PESADO': { volumen: 0.350, peso: 60 },
+        'AGRICOLA_MINERO': { volumen: 0.400, peso: 80 },
         'CAMARAS': { volumen: 0.010, peso: 2 }
     };
 
@@ -4578,7 +4581,7 @@ function searchInventario() {
             
             console.log('Datos a enviar:', datosParaEnviar);
 
-            const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -4632,7 +4635,7 @@ function searchInventario() {
 
         try {
             // Enviar los datos a la hoja de cálculo de Apartados
-            const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -4695,7 +4698,7 @@ function searchInventario() {
             console.log('Datos preparados para enviar:', datosParaEnviar);
 
             // Enviar a SheetDB
-            const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -5171,7 +5174,7 @@ function searchInventario() {
             console.log('Datos a enviar:', datosParaEnviar);
 
             // Enviar los datos a la hoja de cálculo de Apartados
-            const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -5222,7 +5225,7 @@ function searchInventario() {
                 }
                 
                 // Eliminar de SheetDB usando el número económico como identificador
-                const response = await fetch(`https://sheetdb.io/api/v1/bmea54x58prt6/Económico/${numeroEconomico}?sheet=Apartados`, {
+                const response = await fetch(`https://sheetdb.io/api/v1/tgq1mb2nw7zgb/Económico/${numeroEconomico}?sheet=Apartados`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json'
@@ -5249,7 +5252,7 @@ function searchInventario() {
     // Función para cargar datos desde SheetDB
     async function fetchPedidosConfirmados() {
         try {
-            const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Apartados');
+            const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Apartados');
             if (!response.ok) {
                 throw new Error(`Error al cargar pedidos confirmados: ${response.status}`);
             }
@@ -5272,7 +5275,7 @@ function searchInventario() {
 
     async function cargarDatosDesdeSheetDB() {
         try {
-            const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Apartados');
+            const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Apartados');
             
             if (!response.ok) {
                 throw new Error(`Error al cargar datos: ${response.status}`);
@@ -5510,7 +5513,7 @@ function searchInventario() {
 
         // Estrategia A: PATCH por id (si hay id)
         if (possibleId) {
-            const url = `https://sheetdb.io/api/v1/bmea54x58prt6/id/${encodeURIComponent(possibleId)}`;
+            const url = `https://sheetdb.io/api/v1/tgq1mb2nw7zgb/id/${encodeURIComponent(possibleId)}`;
             const opts = {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -5532,7 +5535,7 @@ function searchInventario() {
             const normalize = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
             const econKey = Object.keys(pedidoObj).find(k => normalize(k) === 'economico') || Object.keys(pedidoObj).find(k => normalize(k).includes('econom'));
             const columnName = econKey || 'Económico'; // fallback razonable
-            const url = `https://sheetdb.io/api/v1/bmea54x58prt6/${encodeURIComponent(columnName)}/${encodeURIComponent(economicoVal)}?sheet=Apartados`;
+            const url = `https://sheetdb.io/api/v1/tgq1mb2nw7zgb/${encodeURIComponent(columnName)}/${encodeURIComponent(economicoVal)}?sheet=Apartados`;
             const opts = {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -5552,7 +5555,7 @@ function searchInventario() {
 
         // Estrategia C: PUT completo por id (algunas integraciones requieren PUT a /Apartados/{id} con array)
         if (!persisted && possibleId) {
-            const url = `https://sheetdb.io/api/v1/bmea54x58prt6/Apartados/${encodeURIComponent(possibleId)}`;
+            const url = `https://sheetdb.io/api/v1/tgq1mb2nw7zgb/Apartados/${encodeURIComponent(possibleId)}`;
             const opts = {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -6819,7 +6822,7 @@ async function reservarPedidoActual(idx) {
         };
     
         // Guardar en la hoja de reservados
-        const res = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=reservados', {
+        const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=reservados', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: registroReserva })
@@ -7079,11 +7082,11 @@ function calcularCombinaciones() {
            peso: 25        // 25 kg promedio
        },
       'PESADO': { 
-           volumen: 0.280,  // 280 litros = 0.280 m³
-           peso: 50        // 50 kg promedio
+           volumen: 0.350,  // 350 litros = 0.280 m³
+           peso: 50       // 50 kg promedio
        },
       'AGRICOLA_MINERO': { 
-           volumen: 0.450,  // 450 litros = 0.450 m³
+           volumen: 0.490,  // 490 litros = 0.0 m³
            peso: 80        // 80 kg promedio
        },
       'CAMARAS': {
@@ -7197,7 +7200,7 @@ function calcularCombinaciones() {
     const panelVerificacion = document.getElementById('verificacionRapidaPanel');
     const resultadoExistente = panelVerificacion.querySelector('.alert');
     if (resultadoExistente) {
-        resultadoExistente.remove();
+        resultadoExistente.remove();    
     }
     panelVerificacion.appendChild(resultadoDiv);
 }
@@ -7447,7 +7450,7 @@ async function guardarBloqueEspecial() {
         }));
 
         // Guardar en SheetDB
-        const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Escaneados especiales', {
+        const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Escaneados especiales', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: datosBloque })
@@ -7639,7 +7642,7 @@ async function agregarProductosNuevosAlInventario(productos) {
             valor: ''  // Se deja vacío para llenado manual posterior
         }));
 
-        const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6', {
+        const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: datosParaGuardar })
@@ -7701,7 +7704,7 @@ async function cargarEscaneosGuardados(filtro = '', silencioso = false) {
             console.log('Iniciando carga de escaneos guardados...');
         }
         
-        const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Escaneados especiales');
+        const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Escaneados especiales');
         if (!response.ok) throw new Error('Error al cargar escaneos');
         
         const datos = await response.json();
@@ -7807,7 +7810,7 @@ function renderTable() {
 function mostrarBloquesGuardadosEspeciales() {
     const container = document.getElementById('bloquesGuardadosEspeciales');
     
-    fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Escaneados especiales')
+    fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Escaneados especiales')
         .then(response => response.json())
         .then(datos => {
             // Agrupar por nombre de bloque
@@ -7867,7 +7870,7 @@ async function eliminarBloqueEspecial(nombre) {
     if (!confirm(`¿Está seguro de eliminar el bloque "${nombre}"?`)) return;
 
     try {
-        const response = await fetch(`https://sheetdb.io/api/v1/bmea54x58prt6/Nombre/${encodeURIComponent(nombre)}?sheet=Escaneados especiales`, {
+        const response = await fetch(`https://sheetdb.io/api/v1/tgq1mb2nw7zgb/Nombre/${encodeURIComponent(nombre)}?sheet=Escaneados especiales`, {
             method: 'DELETE'
         });
 
@@ -7983,7 +7986,7 @@ async function confirmarGuardadoEscaneo() {
             Descripción: item.Descripcion || ''  // Notar la tilde en 'Descripción'
         }));
 
-        const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Escaneados especiales', {
+        const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Escaneados especiales', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: datosParaGuardar })
@@ -8388,7 +8391,95 @@ function calcularSugerenciasLlantas(espacioRestante, pesoRestante) {
         .slice(0, 5);
 }
 
-// Modificada función aceptarPedido para guardar en SheetDB Apartados
+// Estructura para manejar asignaciones pendientes por camión (multi-cliente)
+let pendingAsignaciones = {}; // { economico: [pedidoObj, ...] }
+let activePendingEconomico = null; // economico del camión al que se están agregando llantas automáticamente
+
+// Función para guardar una reserva en SheetDB (pestaña "Camiones pendientes")
+async function guardarReservaEnSheetDB(pedidoObj) {
+    try {
+        const dataToSave = {
+            "Fecha": pedidoObj.Fecha || new Date().toLocaleDateString(),
+            "Unidad": pedidoObj.Unidad || "",
+            "Económico": pedidoObj.Económico || "",
+            "Nombre": pedidoObj.Nombre || "",
+            "Llantas": pedidoObj.Llantas || "",
+            "Descripcion": pedidoObj.Descripcion || "",
+            "Volumen": pedidoObj.Volumen || "",
+            "Peso": pedidoObj.Peso || ""
+        };
+        const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Camiones pendientes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: [dataToSave] })
+        });
+        if (!res.ok) console.error('Error al guardar reserva en SheetDB:', res.status);
+    } catch (e) {
+        console.error('Error guardarReservaEnSheetDB:', e);
+    }
+}
+
+// Función para cargar reservas desde SheetDB al inicializar
+async function cargarReservasDePendientes() {
+    try {
+        const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Camiones pendientes');
+        if (!res.ok) return;
+        const datos = await res.json();
+        pendingAsignaciones = {};
+        datos.forEach(d => {
+            const eco = d.Económico || d.economico || '';
+            if (!eco) return;
+            pendingAsignaciones[eco] = pendingAsignaciones[eco] || [];
+            pendingAsignaciones[eco].push({
+                "Fecha": d.Fecha || '',
+                "Unidad": d.Unidad || '',
+                "Económico": eco,
+                "Nombre": d.Nombre || '',
+                "Llantas": d.Llantas || '',
+                "Descripcion": d.Descripcion || '',
+                "Volumen": d.Volumen || '',
+                "Peso": d.Peso || ''
+            });
+        });
+        renderPendingAsignaciones();
+    } catch (e) {
+        console.error('Error cargarReservasDePendientes:', e);
+    }
+}
+
+// Función para eliminar una reserva de SheetDB por ID o campos únicos
+async function eliminarReservaDeSheetDB(economico, nombre) {
+    try {
+        const sheetName = encodeURIComponent('Camiones pendientes');
+        const base = 'https://sheetdb.io/api/v1/tgq1mb2nw7zgb';
+        const filtro = `?sheet=${sheetName}&Económico=${encodeURIComponent(economico)}&Nombre=${encodeURIComponent(nombre)}`;
+
+        // Primero buscar si existen registros que coincidan
+        const getRes = await fetch(base + filtro);
+        if (!getRes.ok) {
+            console.error('Error al buscar reserva antes de eliminar:', getRes.status);
+            return false;
+        }
+        const rows = await getRes.json();
+        if (!Array.isArray(rows) || rows.length === 0) {
+            console.warn('No se encontró registro en Camiones pendientes para', economico, nombre);
+            return false;
+        }
+
+        // Si se encontraron filas, solicitar DELETE con el mismo filtro
+        const delRes = await fetch(base + filtro, { method: 'DELETE' });
+        if (!delRes.ok) {
+            console.error('Error al eliminar reserva en SheetDB:', delRes.status);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.error('Error eliminarReservaDeSheetDB:', e);
+        return false;
+    }
+}
+
+// Nueva versión de aceptarPedido: permite "Agregar otro cliente" (guardar temporalmente)
 async function aceptarPedido() {
     if (!pedidoCamion) {
         alert('Debe seleccionar un camión válido para aceptar el pedido.');
@@ -8400,7 +8491,61 @@ async function aceptarPedido() {
     }
 
     try {
-        // Solicitar nombre de quien hace el pedido usando SweetAlert2
+        // Si hay un camión activo para agregar automáticamente, guardamos directamente en su lista
+        if (activePendingEconomico) {
+            const nombreResultAuto = await Swal.fire({
+                title: 'Nombre del responsable',
+                input: 'text',
+                inputLabel: `Agregar al camión ${activePendingEconomico}`,
+                inputPlaceholder: 'Nombre completo',
+                showCancelButton: true,
+                confirmButtonText: 'Guardar',
+                cancelButtonText: 'Cancelar',
+                inputValidator: (value) => {
+                    if (!value) return 'Debe ingresar un nombre';
+                }
+            });
+
+            if (!nombreResultAuto.isConfirmed || !nombreResultAuto.value) return;
+            const nombrePedidoAuto = nombreResultAuto.value;
+
+            // Guardar directamente en pendingAsignaciones del camión activo
+            let totalVolumenA = pedidosEnCurso.reduce((acc, cur) => acc + safeNum(cur.volumen), 0);
+            let totalPesoA = pedidosEnCurso.reduce((acc, cur) => acc + safeNum(cur.peso), 0);
+            let totalCantidadA = pedidosEnCurso.reduce((acc, cur) => acc + cur.cantidad, 0);
+            const descripcionLlantasA = pedidosEnCurso.map(p => `• ${p.cantidad} x ${p.descripcion}`).join('\n');
+
+            const pedidoObjAuto = {
+                "Fecha": new Date().toLocaleDateString(),
+                "Unidad": pedidoCamion ? (pedidoCamion.unidad || "") : "",
+                "Económico": activePendingEconomico,
+                "Nombre": nombrePedidoAuto,
+                "Llantas": String(totalCantidadA),
+                "Descripcion": descripcionLlantasA,
+                "Volumen": String(totalVolumenA.toFixed(2)),
+                "Peso": String(totalPesoA.toFixed(2))
+            };
+
+            pendingAsignaciones[activePendingEconomico] = pendingAsignaciones[activePendingEconomico] || [];
+            if (pendingAsignaciones[activePendingEconomico].length >= 4) {
+                Swal.fire('Límite alcanzado', 'No puede agregar más de 4 clientes a este camión.', 'warning');
+                return;
+            }
+
+            const pedidoCopia = Object.assign({}, pedidoObjAuto);
+            pendingAsignaciones[activePendingEconomico].push(pedidoCopia);
+            // Guardar en SheetDB
+            await guardarReservaEnSheetDB(pedidoCopia);
+            // limpiar pedido actual
+            pedidosEnCurso = [];
+            renderPedidosActuales();
+            actualizarGraficas();
+            renderPendingAsignaciones();
+            Swal.fire('Guardado', `Pedido agregado al camión ${activePendingEconomico}.`, 'success');
+            return;
+        }
+
+        // Pedir nombre del responsable
         const nombreResult = await Swal.fire({
             title: 'Nombre del responsable',
             input: 'text',
@@ -8410,65 +8555,44 @@ async function aceptarPedido() {
             confirmButtonText: 'Continuar',
             cancelButtonText: 'Cancelar',
             inputValidator: (value) => {
-                if (!value) {
-                    return 'Debe ingresar un nombre';
-                }
+                if (!value) return 'Debe ingresar un nombre';
             }
         });
 
-        if (!nombreResult.isConfirmed || !nombreResult.value) {
-            throw new Error('Se requiere ingresar un nombre para el pedido');
-        }
-
+        if (!nombreResult.isConfirmed || !nombreResult.value) return;
         const nombrePedido = nombreResult.value;
 
-        // Confirmar la operación
-        const result = await Swal.fire({
+        // Confirmación con opción de "Agregar otro cliente" usando botón Deny
+        const accion = await Swal.fire({
             icon: 'question',
             title: '¿Apartar pedido?',
-            text: `¿Desea apartar este pedido?`,
             html: `
                 <p>Responsable: <strong>${nombrePedido}</strong></p>
                 <p>Llantas: <strong>${pedidosEnCurso.length}</strong></p>
             `,
             showCancelButton: true,
-            confirmButtonText: 'Sí, apartar',
+            showDenyButton: true,
+            confirmButtonText: 'Finalizar y apartar',
+            denyButtonText: 'Agregar otro cliente',
             cancelButtonText: 'Cancelar'
         });
 
-        if (!result.isConfirmed) {
-            return;
-        }
+        if (accion.isDismissed) return; // cancel
 
-        // Calcular totales
+        // Totales del pedido actual
         let totalVolumen = pedidosEnCurso.reduce((acc, cur) => acc + safeNum(cur.volumen), 0);
         let totalPeso = pedidosEnCurso.reduce((acc, cur) => acc + safeNum(cur.peso), 0);
         let totalCantidad = pedidosEnCurso.reduce((acc, cur) => acc + cur.cantidad, 0);
 
-        // Crear descripción con viñetas
-        const descripcionLlantas = pedidosEnCurso.map(p => 
-            `• ${p.cantidad} x ${p.descripcion}`
-        ).join('\n');
+        const descripcionLlantas = pedidosEnCurso.map(p => `• ${p.cantidad} x ${p.descripcion}`).join('\n');
 
-        // Debug: ver estructura de pedidoCamion
-        console.log('Estructura de pedidoCamion:', pedidoCamion);
-        
-        // Asegurarse de obtener el número económico correcto
-        let numEconomico = '';
-        if (pedidoCamion && pedidoCamion.economico) {
-            numEconomico = pedidoCamion.economico.toString();
-        }
-        // Si no lo encontramos en pedidoCamion, intentar obtenerlo del input
-        if (!numEconomico) {
-            numEconomico = document.getElementById('inputPedidoNumEconomico').value.trim();
-        }
-        console.log('Número económico a enviar:', numEconomico);
-        
-        // Preparar los datos en el nuevo formato
-        const pedidoConfirmado = {
+        // Obtener número económico
+        let numEconomico = (pedidoCamion && pedidoCamion.economico) ? String(pedidoCamion.economico) : document.getElementById('inputPedidoNumEconomico').value.trim();
+
+        const pedidoObj = {
             "Fecha": new Date().toLocaleDateString(),
             "Unidad": pedidoCamion.unidad || "",
-            "Económico": numEconomico || "",  // Usar el número económico encontrado con tilde
+            "Económico": numEconomico || "",
             "Nombre": nombrePedido,
             "Llantas": String(totalCantidad),
             "Descripcion": descripcionLlantas,
@@ -8476,53 +8600,298 @@ async function aceptarPedido() {
             "Peso": String(totalPeso.toFixed(2))
         };
 
-        // Enviar los datos a la hoja de cálculo de Apartados
-        // Usar la URL completa del servicio SheetDB (igual que en otras funciones)
-        const response = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Apartados', {
+        // Si el usuario eligió "Agregar otro cliente" -> guardar temporalmente y permitir seguir añadiendo
+        if (accion.isDenied) {
+            if (!numEconomico) {
+                Swal.fire('Error', 'No se encontró el número económico del camión para reservarlo.', 'error');
+                return;
+            }
+
+            pendingAsignaciones[numEconomico] = pendingAsignaciones[numEconomico] || [];
+            if (pendingAsignaciones[numEconomico].length >= 4) {
+                Swal.fire('Límite alcanzado', 'No puede agregar más de 4 clientes a este camión.', 'warning');
+                return;
+            }
+
+            // Guardar el pedido actual en la lista pendiente (se guardará como entrada individual)
+            const pedidoCopia = Object.assign({}, pedidoObj);
+            pendingAsignaciones[numEconomico].push(pedidoCopia);
+            // Guardar en SheetDB
+            await guardarReservaEnSheetDB(pedidoCopia);
+
+            // Marcar camión como reservado temporalmente
+            pedidoCamion.apartadoPendiente = true;
+
+            // Limpiar pedido en curso para permitir agregar nuevo cliente
+            pedidosEnCurso = [];
+            renderPedidosActuales();
+            actualizarGraficas();
+
+            // Renderizar el panel de pendientes y mostrar notificación
+            renderPendingAsignaciones();
+            Swal.fire('Reservado', 'El camión ha quedado reservado para agregar otro cliente. Puede agregar hasta 4 clientes.', 'success');
+            return;
+        }
+
+        // Si confirma (Finalizar y apartar): compilar lote a enviar (pendientes + actual)
+        const loteEnviar = [];
+        if (numEconomico && pendingAsignaciones[numEconomico] && pendingAsignaciones[numEconomico].length > 0) {
+            // Añadir las entradas pendientes anteriores
+            pendingAsignaciones[numEconomico].forEach(p => loteEnviar.push(p));
+            // Limpiar pendientes para este camión
+            delete pendingAsignaciones[numEconomico];
+        }
+
+        loteEnviar.push(pedidoObj);
+
+        // Enviar lote a SheetDB (cada objeto será creada como fila separada)
+        const response = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Apartados', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                data: [pedidoConfirmado]
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: loteEnviar })
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('Error respuesta SheetDB:', {
-                status: response.status,
-                statusText: response.statusText,
-                body: errorText
-            });
+            console.error('Error respuesta SheetDB:', { status: response.status, statusText: response.statusText, body: errorText });
             throw new Error(`Error al guardar en Apartados: ${response.status} ${errorText}`);
         }
 
-        // Si todo salió bien, limpiar el pedido en curso
+        // Éxito: limpiar estados
         pedidosEnCurso = [];
         renderPedidosActuales();
-        
-        // Actualizar la vista de pedidos Apartados
         await fetchPedidosApartados();
-        
-        // Limpiar la información del camión
+
         pedidoCamion = null;
         document.getElementById('datosCamionPedido').innerText = '';
         document.getElementById('inputPedidoNumEconomico').value = '';
-        
-        // Cambiar a la pestaña de Apartados
+        renderPendingAsignaciones();
         document.querySelector('[data-tab="pedidos-Apartados"]').click();
-        
-        alert('Pedido guardado exitosamente');
-            document.getElementById('inputPedidoNumEconomico').value = '';
-            renderPedidosActuales();
-            actualizarGraficas();
-            alert('Pedido aceptado y guardado en pedidos Apartados.');
-            renderPedidosApartados();
-        } catch (error) {
-            alert('Error al guardar el pedido confirmado: ' + error.message);
-        }
+
+        Swal.fire('Éxito', 'Pedidos apartados correctamente.', 'success');
+        actualizarGraficas();
+        renderPedidosApartados();
+
+    } catch (error) {
+        console.error('Error al guardar el pedido confirmado:', error);
+        Swal.fire('Error', 'Error al guardar el pedido: ' + (error.message || error), 'error');
     }
+}
+
+// Renderiza el panel de asignaciones pendientes en la pestaña Pedidos
+function renderPendingAsignaciones() {
+    const cont = document.getElementById('pendientesCamion');
+    cont.innerHTML = '';
+    // Insertar estilos pequeños si no existen
+    if (!document.getElementById('estilos-pending-asignaciones')) {
+        const st = document.createElement('style');
+        st.id = 'estilos-pending-asignaciones';
+        st.innerHTML = `
+            .small-bubble { display:inline-block; border-radius:8px; background:rgba(255,255,255,0.95); padding:10px; margin:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1); width:360px; }
+            .small-bubble.active { border:2px solid #4e73df; }
+            .small-bubble h6 { margin:0 0 6px 0; font-size:14px; }
+            .pending-list { font-size:13px; color:#333; max-height:120px; overflow:auto; }
+            .pending-actions { margin-top:8px; display:flex; gap:6px; }
+        `;
+        document.head.appendChild(st);
+    }
+    // Mostrar un único control desplegable si hay múltiples camiones pendientes
+    const keys = Object.keys(pendingAsignaciones || {});
+    if (keys.length === 0) return;
+
+    const select = document.createElement('select');
+    select.className = 'form-select';
+    select.style.maxWidth = '400px';
+    select.style.marginBottom = '8px';
+
+    keys.forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k;
+        const label = `Camión ${k} — Clientes: ${pendingAsignaciones[k].length}/4` + (activePendingEconomico === k ? ' (activo)' : '');
+        opt.textContent = label;
+        select.appendChild(opt);
+    });
+
+    // Seleccionar por defecto el activo o el primero
+    if (activePendingEconomico && keys.includes(activePendingEconomico)) select.value = activePendingEconomico;
+    else select.value = keys[0];
+
+    const detalle = document.createElement('div');
+    detalle.className = 'small-bubble';
+    detalle.style.width = '420px';
+
+    cont.appendChild(select);
+    cont.appendChild(detalle);
+
+    function renderDetalle(econ) {
+        detalle.innerHTML = '';
+        const pedidos = pendingAsignaciones[econ] || [];
+        if (activePendingEconomico === econ) detalle.classList.add('active'); else detalle.classList.remove('active');
+
+        const titulo = document.createElement('h6');
+        titulo.textContent = `Camión ${econ} — Clientes: ${pedidos.length}/4`;
+        detalle.appendChild(titulo);
+
+        const lista = document.createElement('div');
+        lista.className = 'pending-list';
+        lista.style.marginBottom = '6px';
+        lista.innerHTML = pedidos.map(p => `<div>• <strong>${p.Nombre}</strong> — ${p.Llantas} llantas</div>`).join('');
+        detalle.appendChild(lista);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 380; canvas.height = 80;
+        detalle.appendChild(canvas);
+
+        const acciones = document.createElement('div');
+        acciones.className = 'pending-actions';
+
+        const btnFinalizar = document.createElement('button'); btnFinalizar.className = 'btn btn-sm btn-success'; btnFinalizar.textContent = 'Finalizar y apartar';
+        const btnEliminar = document.createElement('button'); btnEliminar.className = 'btn btn-sm btn-danger'; btnEliminar.textContent = 'Eliminar reservas';
+        const btnSeguir = document.createElement('button'); btnSeguir.className = 'btn btn-sm btn-info'; btnSeguir.textContent = (activePendingEconomico === econ) ? 'Activo - Detener' : 'Seguir agregando';
+
+        acciones.appendChild(btnFinalizar); acciones.appendChild(btnEliminar); acciones.appendChild(btnSeguir);
+        detalle.appendChild(acciones);
+
+        btnFinalizar.addEventListener('click', async () => {
+            try {
+                const pedidosAEnviar = pendingAsignaciones[econ] || [];
+                const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Apartados', {
+                    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ data: pedidosAEnviar })
+                });
+                if (!res.ok) throw new Error('Error al enviar reservas');
+
+                // Eliminar cada reserva de SheetDB (Camiones pendientes)
+                for (const pedido of pedidosAEnviar) {
+                    const ok = await eliminarReservaDeSheetDB(pedido.Económico, pedido.Nombre);
+                    if (!ok) console.warn('No se pudo eliminar reserva en SheetDB para', pedido.Económico, pedido.Nombre);
+                }
+
+                delete pendingAsignaciones[econ];
+                if (activePendingEconomico === econ) {
+                    activePendingEconomico = null;
+                    const inputEco = document.getElementById('inputPedidoNumEconomico'); if (inputEco) inputEco.disabled = false;
+                }
+                renderPendingAsignaciones();
+                await fetchPedidosApartados();
+                Swal.fire('Éxito', 'Reservas enviadas a Apartados', 'success');
+            } catch (err) { Swal.fire('Error', err.message || err, 'error'); }
+        });
+
+        btnEliminar.addEventListener('click', async () => {
+            if (confirm('¿Eliminar las reservas pendientes de este camión?')) {
+                // Eliminar de SheetDB (Camiones pendientes)
+                const pedidosAEliminar = pendingAsignaciones[econ] || [];
+                for (const pedido of pedidosAEliminar) {
+                    const ok = await eliminarReservaDeSheetDB(pedido.Económico, pedido.Nombre);
+                    if (!ok) console.warn('No se pudo eliminar reserva en SheetDB para', pedido.Económico, pedido.Nombre);
+                }
+
+                delete pendingAsignaciones[econ];
+                if (activePendingEconomico === econ) {
+                    activePendingEconomico = null; const inputEco = document.getElementById('inputPedidoNumEconomico'); if (inputEco) inputEco.disabled = false;
+                }
+                renderPendingAsignaciones();
+            }
+        });
+
+        btnSeguir.addEventListener('click', () => {
+            if (activePendingEconomico === econ) {
+                activePendingEconomico = null; const inputEco = document.getElementById('inputPedidoNumEconomico'); if (inputEco) inputEco.disabled = false; Swal.fire('Detenido', `Se dejó de agregar automáticamente al camión ${econ}`, 'info');
+            } else {
+                activePendingEconomico = econ; const inputEco = document.getElementById('inputPedidoNumEconomico'); if (inputEco) { inputEco.value = econ; inputEco.disabled = true; } Swal.fire('Activo', `Ahora se agregarán pedidos automáticamente al camión ${econ}`, 'success');
+            }
+            renderPendingAsignaciones();
+        });
+
+        // dibujar gráfico
+        try {
+            const ctx = canvas.getContext('2d');
+            const totalVol = pedidos.reduce((s,p)=>s+safeNum(p.Volumen),0);
+            const totalP = pedidos.reduce((s,p)=>s+safeNum(p.Peso),0);
+            const capVol = safeNum(pedidoCamion && (pedidoCamion['volumen'] || pedidoCamion.capacidadVolumen || pedidoCamion['Cap. Volumen'])) || 45;
+            const capP = safeNum(pedidoCamion && (pedidoCamion['capacidad de carga (kg)'] || pedidoCamion['capacidad'] || pedidoCamion.capacidadPeso)) || 15000;
+            if (window.Chart) {
+                new Chart(ctx, { type: 'bar', data: { labels: ['Volumen (m³)','Peso (kg)'], datasets:[{ label:'Uso', data:[Math.min(100,(totalVol/capVol)*100), Math.min(100,(totalP/capP)*100)], backgroundColor:['#4e73df','#1cc88a'] }] }, options:{ responsive:false, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, max:100 } }, plugins:{ legend:{ display:false } } } });
+            } else { ctx.clearRect(0,0,canvas.width,canvas.height); ctx.fillStyle='#333'; ctx.font='12px Arial'; ctx.fillText(`Vol: ${totalVol.toFixed(2)}/${capVol}`,8,24); ctx.fillText(`Peso: ${totalP.toFixed(0)}/${capP}`,8,44); }
+        } catch(e){ console.warn('No se pudo dibujar gráfico pequeño:', e); }
+    }
+
+    // inicial render
+    renderDetalle(select.value);
+    select.addEventListener('change', () => renderDetalle(select.value));
+}      
+
+// Función auxiliar para guardar el pedido actual como "Agregar otro" sin pasar por el modal de confirmación
+async function guardarYAgregarOtro() {
+    if (!pedidoCamion) {
+        Swal.fire('Error', 'Debe seleccionar un camión válido antes de guardar.', 'error');
+        return;
+    }
+    if (pedidosEnCurso.length === 0) {
+        Swal.fire('Error', 'El pedido está vacío.', 'error');
+        return;
+    }
+
+    try {
+        const { value: nombre } = await Swal.fire({
+            title: 'Nombre del responsable',
+            input: 'text',
+            inputPlaceholder: 'Nombre completo',
+            showCancelButton: true,
+            confirmButtonText: 'Guardar y seguir',
+            cancelButtonText: 'Cancelar',
+            inputValidator: (v) => v ? null : 'Debe ingresar un nombre'
+        });
+
+        if (!nombre) return;
+
+        // Preparar objeto de pedido similar a aceptarPedido
+        let totalVolumen = pedidosEnCurso.reduce((acc, cur) => acc + safeNum(cur.volumen), 0);
+        let totalPeso = pedidosEnCurso.reduce((acc, cur) => acc + safeNum(cur.peso), 0);
+        let totalCantidad = pedidosEnCurso.reduce((acc, cur) => acc + cur.cantidad, 0);
+        const descripcionLlantas = pedidosEnCurso.map(p => `• ${p.cantidad} x ${p.descripcion}`).join('\n');
+
+        let numEconomico = (pedidoCamion && pedidoCamion.economico) ? String(pedidoCamion.economico) : document.getElementById('inputPedidoNumEconomico').value.trim();
+        if (!numEconomico) {
+            Swal.fire('Error', 'No se encontró el número económico del camión.', 'error');
+            return;
+        }
+
+        const pedidoObj = {
+            "Fecha": new Date().toLocaleDateString(),
+            "Unidad": pedidoCamion.unidad || "",
+            "Económico": numEconomico,
+            "Nombre": nombre,
+            "Llantas": String(totalCantidad),
+            "Descripcion": descripcionLlantas,
+            "Volumen": String(totalVolumen.toFixed(2)),
+            "Peso": String(totalPeso.toFixed(2))
+        };
+
+        pendingAsignaciones[numEconomico] = pendingAsignaciones[numEconomico] || [];
+        if (pendingAsignaciones[numEconomico].length >= 4) {
+            Swal.fire('Límite alcanzado', 'No puede agregar más de 4 clientes a este camión.', 'warning');
+            return;
+        }
+
+        const pedidoCopia = Object.assign({}, pedidoObj);
+        pendingAsignaciones[numEconomico].push(pedidoCopia);
+        // Guardar en SheetDB
+        await guardarReservaEnSheetDB(pedidoCopia);
+        pedidoCamion.apartadoPendiente = true;
+
+        // Limpiar el pedido actual para permitir que el usuario agregue llantas del siguiente cliente
+        pedidosEnCurso = [];
+        renderPedidosActuales();
+        actualizarGraficas();
+        renderPendingAsignaciones();
+
+        Swal.fire('Guardado', 'Pedido guardado. Ahora puede agregar llantas para otro cliente en este camión.', 'success');
+    } catch (e) {
+        console.error('guardarYAgregarOtro error', e);
+        Swal.fire('Error', 'No se pudo guardar el pedido: ' + (e.message || e), 'error');
+    }
+}
 
     // -- Renderizar pedidos Apartados --
 function renderPedidosApartados() {
@@ -8639,7 +9008,7 @@ function renderPedidosApartados() {
             'Valor Total ($)': (Number(pedido.valor) / llantas.length).toFixed(2)
         }));
 
-        const res = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=reservados', {
+        const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=reservados', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: registrosReserva })
@@ -8647,7 +9016,7 @@ function renderPedidosApartados() {
 
         if (!res.ok) throw new Error('Error al guardar reserva');
 
-        await fetch(`https://sheetdb.io/api/v1/bmea54x58prt6/camion/${pedido.camion}?sheet=Apartados`, {
+        await fetch(`https://sheetdb.io/api/v1/tgq1mb2nw7zgb/camion/${pedido.camion}?sheet=Apartados`, {
             method: 'DELETE'
         });
 
@@ -8865,7 +9234,7 @@ async function agregarNuevosProductosAlInventario(productos) {
         }
 
         // Obtener inventario actual
-        const res = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6');
+        const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb');
         if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
         const inventarioActual = await res.json();
 
@@ -8933,7 +9302,7 @@ async function agregarNuevosProductosAlInventario(productos) {
 
             if (productosValidos.length > 0) {
                 try {
-                    const res = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6', {
+                    const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ data: productosValidos })
@@ -9208,7 +9577,7 @@ document.getElementById('btnTerminarBloqueFactura').onclick = async () => {
 // Guardar en SheetDB (más rápido: POST en lote)
 async function guardarFacturasEnSheetDB(facturas) {
     try {
-        await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=facturas', {
+        await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=facturas', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: facturas }) // Enviar array
@@ -9360,7 +9729,7 @@ async function actualizarBloquesFacturas() {
     try {
         console.log('Iniciando actualización de bloques de facturas...');
         
-        const res = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=facturas');
+        const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=facturas');
         if (!res.ok) throw new Error(`No se pudo cargar facturas. Status: ${res.status}`);
         
         const facturas = await res.json();
@@ -10380,7 +10749,7 @@ function obtenerUnidadesFlota() {
     console.log('Unidades filtradas final:', unidadesFiltradas);
     return unidadesFiltradas;
 }
-
+   
 function buscarBloques() {
     const busqueda = document.getElementById('busquedaBloque').value.toLowerCase();
     const resultados = document.getElementById('resultadosBusqueda');
@@ -10433,7 +10802,7 @@ function buscarBloques() {
                 </ul>
             </div>`;
         return;
-    }
+    }  
 
     // Generar HTML para los resultados
     resultados.innerHTML = bloquesFiltrados.map((bloque, idx) => `
@@ -10486,12 +10855,12 @@ async function eliminarBloqueFactura(idx) {
     // 1. Obtén todas las filas con ese nombre
     let errores = 0;
     try {
-        const res = await fetch(`https://sheetdb.io/api/v1/bmea54x58prt6/Nombre/${encodeURIComponent(nombreBloque)}?sheet=facturas`);
+        const res = await fetch(`https://sheetdb.io/api/v1/tgq1mb2nw7zgb/Nombre/${encodeURIComponent(nombreBloque)}?sheet=facturas`);
         const facturas = await res.json();
         // 2. Elimina cada una por su row_id
-        for (const factura of facturas) {
+        for (const factura of facturas) {    
             if (factura.row_id) {
-                const delRes = await fetch(`https://sheetdb.io/api/v1/bmea54x58prt6/row_id/${factura.row_id}?sheet=facturas`, {
+                const delRes = await fetch(`https://sheetdb.io/api/v1/tgq1mb2nw7zgb/row_id/${factura.row_id}?sheet=facturas`, {
                     method: 'DELETE'
                 });
                 if (!delRes.ok) errores++;
@@ -10517,7 +10886,7 @@ document.getElementById('facturaSearchFolio').addEventListener('input', function
 // Al cargar la pestaña, carga los bloques desde SheetDB
 document.querySelector('button[data-tab="facturas"]').addEventListener('click', async () => {
     try {
-        const res = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=facturas');
+        const res = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=facturas');
         if (!res.ok) throw new Error('No se pudo cargar facturas');
         const facturas = await res.json();
         bloquesFacturas = [];
@@ -10625,7 +10994,7 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
         }
 
     // Usar URL completa para evitar 'Failed to fetch' cuando se ejecuta desde file:// o distinto origen
-    const resEscaneados = await fetch('https://sheetdb.io/api/v1/bmea54x58prt6?sheet=Escaneados especiales');
+    const resEscaneados = await fetch('https://sheetdb.io/api/v1/tgq1mb2nw7zgb?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
@@ -10669,8 +11038,8 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
                 <i class="bi bi-exclamation-triangle"></i> Error al agregar el bloque: ${error.message}
             </div>`;
     }
-}
-
+} 
+    
 async function generarPDFPedidosApartados() {
     // Mostrar indicador de carga
     Swal.fire({
@@ -10892,7 +11261,7 @@ async function generarPDFPedidosApartados() {
                 windowWidth: 1200,
                 backgroundColor: '#ffffff'
             },
-            jsPDF: { 
+            jsPDF: {  
                 unit: 'mm', 
                 format: 'letter', 
                 orientation: 'portrait',
