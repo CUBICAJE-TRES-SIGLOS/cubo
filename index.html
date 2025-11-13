@@ -499,6 +499,7 @@
     height: 100%;
     background-color: rgba(0,0,0,0.5);
     animation: fadeIn 0.3s;
+
 }
 
 .modal-content {
@@ -7207,6 +7208,203 @@ function calcularCombinaciones() {
 // Variables globales adicionales
 
 // Función principal de procesamiento
+// Fallback: parsear texto plano tipo tabla para líneas "CANTIDAD  CÓDIGO  DESCRIPCIÓN"
+function parseProductsFromPlainText(text) {
+    try {
+        // Normalizar saltos y obtener líneas
+        let rawLines = text.replace(/\r/g, '\n').split(/\n+/).map(l => l.replace(/\u00A0/g,' ').trim());
+        // Filtrar líneas vacías
+        rawLines = rawLines.filter(Boolean);
+
+        // Unir líneas de continuación: si una línea NO empieza con un número (cantidad),
+        // se considera continuación de la línea anterior y se concatena.
+        const lines = [];
+        for (const ln of rawLines) {
+            if (/^\s*\d+[\d\.,]*\s+/.test(ln)) {
+                lines.push(ln);
+            } else {
+                // Continuación: unir con la previa si existe
+                if (lines.length > 0) {
+                    lines[lines.length - 1] = (lines[lines.length - 1] + ' ' + ln).trim();
+                } else {
+                    // Si no hay previa, agregar la línea suelta
+                    lines.push(ln);
+                }
+            }
+        }
+        const products = [];
+
+        // Regex mejorada: cantidad (entero o decimal, comas/puntos), luego código (letras/números/./-/\/:()), luego descripción (resto)
+        const rowRegexes = [
+            /^(\d+[\d\.,]*)\s+([A-Z0-9\-\./\\()]{2,})\s+(.+)$/i,
+            // Caso alterno: columna código puede estar entre paréntesis después de cantidad
+            /^(\d+[\d\.,]*)\s+(.{3,20})\s+([A-Z0-9\-\./\\()]{2,})\s+(.+)$/i
+        ];
+
+        for (let line of lines) {
+            // Normalizar múltiples espacios y tabs
+            line = line.replace(/\t+/g, ' ').replace(/\s{2,}/g, ' ');
+
+            let matched = false;
+            for (const rx of rowRegexes) {
+                const m = line.match(rx);
+                if (m) {
+                    // Si la regex devuelve 3 grupos: cantidad,codigo,descr
+                    if (m.length >= 4) {
+                        // Detectar qué grupo es cuál según la regex usada
+                        if (rx === rowRegexes[0]) {
+                            products.push({ cantidad: m[1], codigo: m[2], descripcion: m[3] });
+                        } else {
+                            // Rx alterna (cantidad, col1, codigo, descripcion)
+                            products.push({ cantidad: m[1], codigo: m[3], descripcion: m[4] });
+                        }
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+
+            // Intentar extraer con heurística: número al inicio + última columna larga como descripción
+            if (!matched) {
+                const heur = line.match(/^(\d+[\d\.,]*)\s+(.+)$/);
+                if (heur) {
+                    const rest = heur[2];
+                    // intentar dividir rest en código + descripción por la primera secuencia alfanumérica corta
+                    const parts = rest.split(/\s+/);
+                    if (parts.length >= 2) {
+                        const possibleCode = parts[0];
+                        const possibleDesc = parts.slice(1).join(' ');
+                        if (possibleCode.length >= 2 && possibleDesc.length > 3) {
+                            products.push({ cantidad: heur[1], codigo: possibleCode, descripcion: possibleDesc });
+                        }
+                    }
+                }
+            }
+        }
+
+        return products;
+    } catch (e) {
+        console.warn('parseProductsFromPlainText error', e);
+        return [];
+    }
+}
+
+// Utilidad para evitar inyección en el log (ubicada en el scope de <script>)
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Intento robusto: reconstruir filas basadas en posiciones X/Y devueltas por PDF.js
+function parseProductsFromPdfjsItems(items) {
+    try {
+        if (!items || items.length === 0) return [];
+
+        // Mapear items a {x,y,text}
+        const mapped = items.map(it => ({
+            text: (it.str || '').trim(),
+            x: (it.transform && it.transform[4]) ? Math.round(it.transform[4]) : 0,
+            y: (it.transform && it.transform[5]) ? Math.round(it.transform[5]) : 0
+        })).filter(i => i.text);
+
+        if (mapped.length === 0) return [];
+
+        // Agrupar por línea según Y (tolerancia de 2 px)
+        const linesMap = new Map();
+        for (const it of mapped) {
+            // redondear Y a múltiplos de 3 para agrupar líneas cercanas
+            const yKey = Math.round(it.y / 3) * 3;
+            if (!linesMap.has(yKey)) linesMap.set(yKey, []);
+            linesMap.get(yKey).push(it);
+        }
+
+        // Obtener todos los X para clustering
+        const allXs = Array.from(new Set(mapped.map(m => m.x))).sort((a,b) => a - b);
+
+        // Funcion simple para dividir X en hasta 3 clusters por los gaps mayores
+        function clusterXPositions(xs, maxClusters = 3) {
+            if (xs.length === 0) return [];
+            if (xs.length <= maxClusters) return xs.map(x => ({ min: x - 1, max: x + 1 }));
+            // calcular diferencias
+            const diffs = [];
+            for (let i = 1; i < xs.length; i++) diffs.push({ idx: i, gap: xs[i] - xs[i-1] });
+            // elegir los (maxClusters-1) mayores saltos
+            diffs.sort((a,b) => b.gap - a.gap);
+            const splitIdxs = diffs.slice(0, maxClusters - 1).map(d => d.idx).sort((a,b) => a - b);
+            const clusters = [];
+            let start = 0;
+            for (const si of splitIdxs) {
+                const clusterXs = xs.slice(start, si);
+                clusters.push({ min: clusterXs[0] - 2, max: clusterXs[clusterXs.length - 1] + 2 });
+                start = si;
+            }
+            const lastXs = xs.slice(start);
+            if (lastXs.length) clusters.push({ min: lastXs[0] - 2, max: lastXs[lastXs.length - 1] + 2 });
+            return clusters;
+        }
+
+        const clusters = clusterXPositions(allXs, 3);
+        if (!clusters || clusters.length === 0) return [];
+
+        // Para cada linea, asignar textos a clusters por X y reconstruir columnas
+        const products = [];
+        const sortedYKeys = Array.from(linesMap.keys()).sort((a,b) => b - a).reverse();
+        for (const yKey of sortedYKeys) {
+            const rowItems = linesMap.get(yKey).sort((a,b) => a.x - b.x);
+            const cols = clusters.map(() => []);
+            for (const it of rowItems) {
+                // encontrar cluster que contiene la x
+                let assigned = false;
+                for (let ci = 0; ci < clusters.length; ci++) {
+                    const r = clusters[ci];
+                    if (it.x >= r.min && it.x <= r.max) {
+                        cols[ci].push(it.text);
+                        assigned = true;
+                        break;
+                    }
+                }
+                if (!assigned) {
+                    // asignar al cluster más cercana por distancia
+                    let best = 0; let bestDist = Infinity;
+                    for (let ci = 0; ci < clusters.length; ci++) {
+                        const mid = (clusters[ci].min + clusters[ci].max) / 2;
+                        const d = Math.abs(it.x - mid);
+                        if (d < bestDist) { best = ci; bestDist = d; }
+                    }
+                    cols[best].push(it.text);
+                }
+            }
+
+            // construir strings por columna
+            const colStrs = cols.map(ca => ca.join(' ').replace(/\s+/g, ' ').trim());
+            // heuristica: columna0=cantidad numerica, columna1=codigo corto alfanum, columna2=descripcion larga
+            const c0 = colStrs[0] || '';
+            const c1 = colStrs[1] || '';
+            const c2 = colStrs[2] || '';
+
+            const cantidadMatch = c0.match(/\d+[\d\.,]*/);
+            const codigoCandidate = c1 || (c0 && !cantidadMatch ? c0 : '');
+            const descripcionCandidate = c2 || (c1 && c1.length > 6 ? c1 : '');
+
+            if (cantidadMatch && codigoCandidate && descripcionCandidate) {
+                const cantidad = cantidadMatch[0].replace(/,/g, '.');
+                products.push({ cantidad, codigo: codigoCandidate.trim(), descripcion: descripcionCandidate.trim() });
+            }
+        }
+
+        return products;
+    } catch (e) {
+        console.warn('parseProductsFromPdfjsItems error', e);
+        return [];
+    }
+}
+
+
 async function processFiles() {
     const files = document.getElementById('fileInput').files;
     if (!files.length) return alert("Selecciona al menos un PDF");
@@ -7235,24 +7433,130 @@ async function processFiles() {
             
             try {
                 const { fecha, productos } = await extractDataFromPDF(file);
-                
-                const fileRows = productos
+                // Productos extraídos inicialmente por OCR/parseo
+                let productosParsed = productos || [];
+
+                // Si no se extrajeron productos, intentar fallback: extraer texto con pdfjs y parsear líneas tipo tabla
+                if (!productosParsed || productosParsed.length === 0) {
+                    try {
+                        const arrayBuffer = await file.arrayBuffer();
+                        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                        let fullText = '';
+                        const itemsAll = [];
+                        for (let p = 1; p <= pdf.numPages; p++) {
+                            const page = await pdf.getPage(p);
+                            const content = await page.getTextContent();
+                            fullText += content.items.map(i => i.str).join(' ') + '\n';
+                            // almacenar items para parsing por posiciones
+                            if (Array.isArray(content.items)) {
+                                itemsAll.push(...content.items);
+                            }
+                        }
+
+                        // Intentar parsear usando posiciones X/Y (más robusto para PDFs digitales)
+                        try {
+                            const byPos = parseProductsFromPdfjsItems(itemsAll);
+                            if (byPos && byPos.length > 0) {
+                                productosParsed = byPos;
+                            }
+                        } catch (e) {
+                            console.warn('parse by positions failed', e);
+                        }
+
+                        // Si no hubo éxito por posiciones, intentar parse simple por líneas
+                        if (!productosParsed || productosParsed.length === 0) {
+                            const fallback = parseProductsFromPlainText(fullText);
+                            if (fallback && fallback.length > 0) {
+                                productosParsed = fallback;
+                            }
+                        }
+                        // Mostrar texto bruto extraído para depuración (colapsable en el log)
+                        try {
+                            const dbgId = 'dbg_raw_' + Math.random().toString(36).slice(2,9);
+                            logDiv.innerHTML += `
+                                <details id="${dbgId}" style="margin:6px 0;">
+                                    <summary>Ver texto RAW extraído (fallback)</summary>
+                                    <pre style="max-height:200px;overflow:auto;background:#f8f9fa;padding:8px;border:1px solid #eee">${escapeHtml(fullText)}</pre>
+                                </details>`;
+                        } catch(e) { console.warn('No se pudo insertar texto RAW en log', e); }
+                        } catch (fbErr) {
+                        console.warn('Fallback de texto falló:', fbErr);
+                    }
+
+                    // Si aún no se extrajeron productos, intentar OCR con Tesseract (más lento pero robusto)
+                    if ((!productosParsed || productosParsed.length === 0) && window.Tesseract) {
+                        try {
+                            let ocrText = '';
+                            const arrayBuffer2 = await file.arrayBuffer();
+                            const pdf2 = await pdfjsLib.getDocument({ data: arrayBuffer2 }).promise;
+                            for (let pageNumOcr = 1; pageNumOcr <= pdf2.numPages; pageNumOcr++) {
+                                const pageO = await pdf2.getPage(pageNumOcr);
+                                const viewport = pageO.getViewport({ scale: 2 });
+                                const canvas = document.createElement('canvas');
+                                const ctx = canvas.getContext('2d');
+                                canvas.width = Math.floor(viewport.width);
+                                canvas.height = Math.floor(viewport.height);
+                                await pageO.render({ canvasContext: ctx, viewport }).promise;
+
+                                // Ejecutar OCR sobre el canvas
+                                const { data: { text } } = await Tesseract.recognize(canvas, 'spa', {
+                                    logger: m => {
+                                        try {
+                                            // Mostrar progreso leve en el log
+                                            const prog = Math.round((m.progress || 0) * 100);
+                                            logDiv.innerHTML += `<div style="font-size:12px;color:#666">OCR página ${pageNumOcr}/${pdf2.numPages}: ${prog}% — ${escapeHtml(m.status || '')}</div>`;
+                                        } catch (e) {}
+                                    }
+                                });
+                                ocrText += `\n--- Página ${pageNumOcr} ---\n` + (text || '');
+                            }
+
+                            // Parsear líneas del OCR buscando las 3 columnas
+                            const ocrLines = ocrText.split(/\n+/).map(l => l.trim()).filter(Boolean);
+                            const ocrRegex = /^(\d+[\d\.,]*)\s+(\S{2,})\s+(.+)$/;
+                            const ocrProducts = ocrLines.map(line => {
+                                const m = line.match(ocrRegex);
+                                if (m) {
+                                    return { cantidad: m[1], codigo: m[2], descripcion: m[3] };
+                                }
+                                return null;
+                            }).filter(Boolean);
+
+                            if (ocrProducts.length > 0) {
+                                productosParsed = ocrProducts;
+                                // Mostrar texto OCR para depuración
+                                try {
+                                    const dbgIdO = 'dbg_ocr_' + Math.random().toString(36).slice(2,9);
+                                    logDiv.innerHTML += `\n<details id="${dbgIdO}" style="margin:6px 0;"><summary>Ver texto OCR completo</summary><pre style="max-height:240px;overflow:auto;background:#fff;padding:8px;border:1px solid #eee">${escapeHtml(ocrText)}</pre></details>`;
+                                } catch(e) { console.warn('No se pudo insertar texto OCR en log', e); }
+                            }
+                        } catch (ocrErr) {
+                            console.warn('OCR fallback falló:', ocrErr);
+                        }
+                    }
+                }
+
+                const fileRows = productosParsed
                     .map(producto => {
                         try {
                             // Asegurarse que los valores sean strings antes de usar replace
                             const cantidadStr = String(producto.cantidad || '0');
-                            const cantidad = parseFloat(cantidadStr.replace(/[^\d.]/g, '') || '0');
-                            const codigo = String(producto.codigo || '').replace(/[^\w\-]/g, '').trim();
+                            const cantidadClean = cantidadStr.replace(/,/g, '.').replace(/[^\d.]/g, '');
+                            const cantidad = parseFloat(cantidadClean) || 0;
+                            const codigo = String(producto.codigo || '')
+                                .toUpperCase()
+                                .replace(/[^A-Z0-9\-\.\/()]/g, '')
+                                .trim();
                             let descripcion = String(producto.descripcion || '')
                                 .replace(/\s+/g, ' ')
-                                .replace(/[^\w\s\-\/."]/g, '')
+                                .replace(/[^\w\s\-\/().\"\u00C0-\u017F]/g, '')
                                 .trim()
                                 .toUpperCase();
 
                             if (!codigo || !descripcion) return null;
 
                             const validaciones = {
-                                codigo: /^[A-Z0-9\-]{3,}$/i.test(codigo),
+                                codigo: /^[A-Z0-9\-\.\/()]{2,}$/i.test(codigo),
                                 cantidad: !isNaN(cantidad) && cantidad > 0,
                                 descripcion: descripcion.length >= 5
                             };
@@ -9560,7 +9864,30 @@ document.getElementById('btnTerminarBloqueFactura').onclick = async () => {
         return;
     }
     // Agrega el nombre del bloque a cada producto
-     facturasParaGuardar.forEach(p => p.Nombre = nombreBloque);
+    facturasParaGuardar.forEach(p => p.Nombre = nombreBloque);
+
+    // Normalizar campos y calcular volumen antes de guardar/agregar al inventario
+    for (let i = 0; i < facturasParaGuardar.length; i++) {
+        const p = facturasParaGuardar[i];
+        const codigo = (p.Código || p.Codigo || p.codigo || p.codigoLlanta || '').toString().trim();
+        const descripcion = (p.Descripción || p.Descripcion || p.descripcion || p.Descrip || '').toString().trim();
+        const cantidad = Number(p.Cantidad || p.cantidad || p.cant || 0) || 0;
+
+        // Reescribir campos con nombres esperados por otras funciones
+        p.Código = codigo;
+        p.Descripción = descripcion;
+        p.Cantidad = cantidad;
+
+        try {
+            // calcularVolumenLlanta puede ser asincrónica; esperamos el resultado
+            const vol = await calcularVolumenLlanta(descripcion || '');
+            // devolver número como string con 4 decimales
+            p.Volumen = vol ? String(vol) : '0.0000';
+        } catch (e) {
+            console.warn('No se pudo calcular volumen para', descripcion, e);
+            p.Volumen = '0.0000';
+        }
+    }
 
     bloquesFacturas.push({ nombre: nombreBloque, datos: facturasParaGuardar });
     await guardarFacturasEnSheetDB(facturasParaGuardar);
