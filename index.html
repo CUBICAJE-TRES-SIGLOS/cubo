@@ -1878,7 +1878,7 @@ function iniciarActualizacionesAutomaticas() {
             }
         } catch (error) {
             console.error('Error en actualización automática:', error);
-        }
+        } 
     }, 120000); // 2 minutos
 }
 
@@ -1908,7 +1908,7 @@ function mostrarEstado(mensaje, tipo = 'info') {
     statusDiv.style.padding = '10px';
     statusDiv.style.backgroundColor = tipo === 'error' ? '#ffebee' : '#f0f4ff';
     statusDiv.style.border = '1px solid #ccc';
-    statusDiv.style.borderRadius = '4px';
+    statusDiv.style.borderRadius = '4px';    
     statusDiv.style.zIndex = '1000';
     document.body.appendChild(statusDiv);
     setTimeout(() => statusDiv.remove(), 3000);
@@ -3239,12 +3239,15 @@ async function actualizarTablaLlantasBloque(llantas) {
 // Funciones auxiliares para procesar cada tipo de bloque
 async function procesarBloquetraspasos(datos) {
     let seAgregaron = false;
-    
+    const nuevosParaInventario = [];
+
     for (const producto of datos) {
-        const llanta = inventario.find(item => item.clave?.toString() === producto.Código?.toString());
+        const codigoProd = producto.Código?.toString?.() || producto.codigo?.toString?.() || '';
+        const descripcionProd = (producto.Descripción || producto.Descripcion || producto.descripcion || '').toString();
+        const cantidad = Number(producto.Cantidad) || 1;
+
+        const llanta = inventario.find(item => item.clave?.toString() === codigoProd);
         if (llanta) {
-            const cantidad = Number(producto.Cantidad) || 1;
-            
             let pedidoExistente = pedidosEnCurso.find(p => p.clave === llanta.clave);
             if (pedidoExistente) {
                 // Actualizar cantidad existente
@@ -3264,8 +3267,41 @@ async function procesarBloquetraspasos(datos) {
                     valor: safeNum(getField(llanta,'valor')) * cantidad
                 });
             }
+        } else {
+            // Si la llanta no existe en inventario, agregar una entrada temporal al pedido
+            const volumenCalc = Number(await calcularVolumenLlanta(descripcionProd)) || 0;
+            const pesoCalc = Number(await calcularPesoLlanta(descripcionProd)) || 0;
+
+            pedidosEnCurso.push({
+                clave: codigoProd || '',
+                descripcion: descripcionProd,
+                linea: determinarTipoLlanta(descripcionProd),
+                cantidad: cantidad,
+                peso: pesoCalc * cantidad,
+                volumen: volumenCalc * cantidad,
+                valor: 0
+            });
+
+            // Preparar para agregar al inventario (si tiene código y descripción)
+            if (codigoProd && descripcionProd) {
+                nuevosParaInventario.push({
+                    Código: codigoProd,
+                    Descripción: descripcionProd,
+                    Cantidad: cantidad
+                });
+            }
         }
     }
+
+    // Intentar agregar los nuevos productos al inventario (evita duplicados internamente)
+    if (nuevosParaInventario.length > 0) {
+        try {
+            await agregarNuevosProductosAlInventario(nuevosParaInventario);
+        } catch (e) {
+            console.warn('No se pudieron agregar automáticamente los nuevos productos al inventario:', e);
+        }
+    }
+
     renderPedidosActuales();
     actualizarGraficas();
 }
@@ -8865,31 +8901,76 @@ async function cargarReservasDePendientes() {
 // Función para eliminar una reserva de SheetDB por ID o campos únicos
 async function eliminarReservaDeSheetDB(economico, nombre) {
     try {
-        const sheetName = encodeURIComponent('Camiones pendientes');
         const base = 'https://sheetdb.io/api/v1/6vsk0ndly1a58';
-        const filtro = `?sheet=${sheetName}&Económico=${encodeURIComponent(economico)}&Nombre=${encodeURIComponent(nombre)}`;
+        let eliminado = false;
 
-        // Primero buscar si existen registros que coincidan
-        const getRes = await fetch(base + filtro);
-        if (!getRes.ok) {
-            console.error('Error al buscar reserva antes de eliminar:', getRes.status);
-            return false;
-        }
-        const rows = await getRes.json();
-        if (!Array.isArray(rows) || rows.length === 0) {
-            console.warn('No se encontró registro en Camiones pendientes para', economico, nombre);
-            return false;
+        console.log('🔍 Iniciando eliminación para - Económico:', economico, 'Nombre:', nombre);
+
+        // Eliminar de "Camiones pendientes" ÚNICAMENTE
+        try {
+            const sheetName = encodeURIComponent('Camiones pendientes');
+            
+            console.log('📥 Obteniendo todos los registros de "Camiones pendientes"...');
+            const getRes = await fetch(base + `?sheet=${sheetName}`);
+            if (getRes.ok) {
+                const rows = await getRes.json();
+                console.log('📊 Total de registros encontrados en "Camiones pendientes":', rows.length);
+                console.log('📋 Todos los registros:', JSON.stringify(rows, null, 2));
+                
+                if (Array.isArray(rows)) {
+                    // Buscar coincidencias
+                    const toDelete = rows.filter(r => {
+                        const ecoRow = (r.Económico || r.economico || '').toString().trim();
+                        const nombreRow = (r.Nombre || r.nombre || '').toString().trim().toLowerCase();
+                        const ecoSearch = economico.toString().trim();
+                        const nombreSearch = nombre.toString().trim().toLowerCase();
+                        
+                        const match = ecoRow === ecoSearch && nombreRow === nombreSearch;
+                        console.log(`  Comparando: ecoRow="${ecoRow}" vs ecoSearch="${ecoSearch}" | nombreRow="${nombreRow}" vs nombreSearch="${nombreSearch}" => Match: ${match}`);
+                        return match;
+                    });
+                    
+                    console.log('🎯 Registros a eliminar:', toDelete.length);
+                    console.log('📌 Detalles de registros a eliminar:', JSON.stringify(toDelete, null, 2));
+                    
+                    // Eliminar cada fila encontrada
+                    for (const row of toDelete) {
+                        const rowId = row.id || row.ID;
+                        console.log('🗑️ Intentando eliminar fila con ID:', rowId, 'Datos:', JSON.stringify(row));
+                        
+                        if (rowId) {
+                            const delRes = await fetch(base + `/${encodeURIComponent(rowId)}?sheet=${sheetName}`, { method: 'DELETE' });
+                            console.log('   Respuesta DELETE por ID:', delRes.status, delRes.statusText);
+                            if (delRes.ok) {
+                                console.log('✅ Eliminado de Camiones pendientes (por ID):', economico, nombre);
+                                eliminado = true;
+                            }
+                        } else {
+                            // Fallback: eliminar por filtro
+                            const filtro = `?sheet=${sheetName}&Económico=${encodeURIComponent(economico)}&Nombre=${encodeURIComponent(nombre)}`;
+                            const delRes = await fetch(base + filtro, { method: 'DELETE' });
+                            console.log('   Respuesta DELETE por filtro:', delRes.status, delRes.statusText);
+                            if (delRes.ok) {
+                                console.log('✅ Eliminado de Camiones pendientes (por filtro):', economico, nombre);
+                                eliminado = true;
+                            }
+                        }
+                    }
+                }
+            } else {
+                console.error('❌ Error al obtener datos de "Camiones pendientes":', getRes.status, getRes.statusText);
+            }
+        } catch (e) {
+            console.error('❌ Error al eliminar de Camiones pendientes:', e);
         }
 
-        // Si se encontraron filas, solicitar DELETE con el mismo filtro
-        const delRes = await fetch(base + filtro, { method: 'DELETE' });
-        if (!delRes.ok) {
-            console.error('Error al eliminar reserva en SheetDB:', delRes.status);
-            return false;
+        if (!eliminado) {
+            console.warn('⚠️ No se encontró ningún registro para eliminar en "Camiones pendientes":', economico, nombre);
         }
-        return true;
+        
+        return eliminado;
     } catch (e) {
-        console.error('Error eliminarReservaDeSheetDB:', e);
+        console.error('❌ Error general en eliminarReservaDeSheetDB:', e);
         return false;
     }
 }
