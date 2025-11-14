@@ -9360,9 +9360,33 @@ async function guardarReservaEnSheetDB(pedidoObj) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: [dataToSave] })
         });
-        if (!res.ok) console.error('Error al guardar reserva en SheetDB:', res.status);
+        if (!res.ok) {
+            console.error('Error al guardar reserva en SheetDB:', res.status);
+            return null;
+        }
+        // Intentar devolver la respuesta JSON con la fila creada (si SheetDB la retorna)
+        try {
+            const json = await res.json();
+            // SheetDB puede devolver el objeto creado; devolverlo para permitir rollback por row_id
+            return Array.isArray(json) && json.length ? json[0] : json;
+        } catch (e) {
+            return true; // éxito pero sin detalle
+        }
     } catch (e) {
         console.error('Error guardarReservaEnSheetDB:', e);
+    }
+}
+
+// Eliminar una fila por row_id (si disponible)
+async function eliminarFilaPorRowId(rowId, sheetName = 'Camiones pendientes') {
+    if (!rowId) return false;
+    const baseUrl = 'https://sheetdb.io/api/v1/11bmhfzsa4el3';
+    try {
+        const delRes = await fetch(`${baseUrl}/row_id/${encodeURIComponent(rowId)}?sheet=${encodeURIComponent(sheetName)}`, { method: 'DELETE' });
+        return delRes.ok;
+    } catch (e) {
+        console.warn('eliminarFilaPorRowId error:', e);
+        return false;
     }
 }
 
@@ -9530,6 +9554,80 @@ async function eliminarReservaDeSheetDB(economico, nombre) {
         return anyDeleted;
     } catch (e) {
         console.error('❌ eliminarReservaDeSheetDB error:', e);
+        return false;
+    }
+}
+
+// Intento más seguro de actualizar reservas en SheetDB (evita crear duplicados)
+// Ahora intenta PATCH por row_id; si no hay row_id intenta PATCH por filtro Económico.
+// Devuelve true si actualizó, false si no pudo (el caller hará fallback transaccional).
+async function actualizarReservaEnSheetDB(originalEcon, originalNombre, nuevoEcon, nuevaUnidad) {
+    const baseUrl = 'https://sheetdb.io/api/v1/11bmhfzsa4el3';
+    const sheetCandidates = ['Camiones pendientes', 'camiones pendientes'];
+    try {
+        for (const sheetName of sheetCandidates) {
+            try {
+                const getRes = await fetch(`${baseUrl}?sheet=${encodeURIComponent(sheetName)}`);
+                if (!getRes.ok) continue;
+                const rows = await getRes.json();
+
+                // Buscar coincidencias por Económico + Nombre (filtrado local)
+                const matches = rows.filter(r => {
+                    const ecoRaw = r['Económico'] || r.Economico || r.economico || '';
+                    const nombreRaw = r['Nombre'] || r.nombre || r.NOMBRE || '';
+                    return normalizeKey(ecoRaw) === normalizeKey(originalEcon || '') &&
+                        (normalizeKey(nombreRaw) === normalizeKey(originalNombre || '') || String(nombreRaw).includes(originalNombre));
+                });
+
+                if (matches.length === 0) continue;
+
+                const dataToPatch = { 'Económico': String(nuevoEcon), 'Unidad': nuevaUnidad };
+
+                // Intentar PATCH por row_id en cada match
+                for (const row of matches) {
+                    const possibleIds = [row.row_id, row.id, row.ID, row._id];
+                    const rid = possibleIds.find(x => x !== undefined && x !== null && String(x).trim() !== '');
+                    if (rid) {
+                        try {
+                            const patchRes = await fetch(`${baseUrl}/row_id/${encodeURIComponent(rid)}?sheet=${encodeURIComponent(sheetName)}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ data: dataToPatch })
+                            });
+                            if (patchRes.ok) {
+                                // si al menos uno se actualizó por row_id, consideramos éxito
+                                return true;
+                            }
+                        } catch (e) {
+                            console.warn('PATCH by row_id failed', e);
+                        }
+                    }
+                }
+
+                // Si no pudimos PATCHear por row_id, intentar PATCH por filtro Económico (actualiza filas con ese Económico)
+                try {
+                    const patchByEcon = await fetch(`${baseUrl}?sheet=${encodeURIComponent(sheetName)}&column=Económico&value=${encodeURIComponent(originalEcon)}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ data: dataToPatch })
+                    });
+                    if (patchByEcon.ok) {
+                        return true;
+                    }
+                } catch (e) {
+                    console.warn('PATCH by Económico filter failed', e);
+                }
+
+                // No se pudo actualizar aquí (ni por row_id ni por filtro)
+                return false;
+            } catch (e) {
+                console.warn('Error leyendo hoja', sheetName, e);
+                continue;
+            }
+        }
+        return false;
+    } catch (e) {
+        console.error('actualizarReservaEnSheetDB error:', e);
         return false;
     }
 }
@@ -9795,6 +9893,46 @@ function renderPendingAsignaciones() {
         lista.innerHTML = pedidos.map(p => `<div>• <strong>${p.Nombre}</strong> — ${p.Llantas} llantas</div>`).join('');
         detalle.appendChild(lista);
 
+        // Selector para reasignar estas reservas a otra unidad de la pestaña Flota
+        const unidadDiv = document.createElement('div');
+        unidadDiv.style.margin = '6px 0';
+        unidadDiv.style.display = 'flex';
+        unidadDiv.style.alignItems = 'center';
+
+        const unitSelect = document.createElement('select');
+        unitSelect.className = 'form-select form-select-sm';
+        unitSelect.style.maxWidth = '320px';
+        unitSelect.style.display = 'inline-block';
+        unitSelect.style.marginRight = '8px';
+
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = '-- Cambiar unidad (flota) --';
+        unitSelect.appendChild(defaultOpt);
+
+        (flota || []).forEach(c => {
+            try {
+                const o = document.createElement('option');
+                o.value = String(c.economico || c.economico);
+                o.textContent = `${(c.unidad || c.unidad || '').toString()} — ${c.economico}`;
+                unitSelect.appendChild(o);
+            } catch (e) { /* ignore malformed flota entries */ }
+        });
+
+        // Intentar seleccionar la unidad actual si existe
+        if (pedidoCamion && pedidoCamion.economico) {
+            try { unitSelect.value = String(pedidoCamion.economico); } catch (e) {}
+        }
+
+        const btnAsignarUnidad = document.createElement('button');
+        btnAsignarUnidad.className = 'btn btn-sm btn-secondary';
+        btnAsignarUnidad.style.marginLeft = '6px';
+        btnAsignarUnidad.textContent = 'Asignar a unidad';
+
+        unidadDiv.appendChild(unitSelect);
+        unidadDiv.appendChild(btnAsignarUnidad);
+        detalle.appendChild(unidadDiv);
+
         const canvas = document.createElement('canvas');
         canvas.width = 380; canvas.height = 80;
         detalle.appendChild(canvas);
@@ -9808,6 +9946,113 @@ function renderPendingAsignaciones() {
 
         acciones.appendChild(btnFinalizar); acciones.appendChild(btnEliminar); acciones.appendChild(btnSeguir);
         detalle.appendChild(acciones);
+
+        // Lógica: reasignar reservas pendientes a otra unidad de la flota
+        btnAsignarUnidad.addEventListener('click', async () => {
+            const target = unitSelect.value;
+            if (!target) {
+                Swal.fire('Selecciona una unidad', 'Por favor elige una unidad de la lista.', 'info');
+                return;
+            }
+            if (target === econ) {
+                Swal.fire('Sin cambios', 'La unidad seleccionada es la misma que la actual.', 'info');
+                return;
+            }
+
+            const sourceArr = pendingAsignaciones[econ] || [];
+            if (!sourceArr.length) {
+                Swal.fire('No hay reservas', 'No se encontraron reservas para mover.', 'warning');
+                return;
+            }
+
+            pendingAsignaciones[target] = pendingAsignaciones[target] || [];
+            if (pendingAsignaciones[target].length + sourceArr.length > 4) {
+                Swal.fire('Límite excedido', 'No se puede asignar: la unidad destino superaría 4 clientes.', 'error');
+                return;
+            }
+
+            // Intentar sincronizar con SheetDB: eliminar las filas originales y volver a crear con el econ nuevo
+            try {
+                // Intentar actualizar las filas existentes en SheetDB (evitar duplicados)
+                await Promise.all(sourceArr.map(async (p) => {
+                    const originalNombre = p.Nombre || p.Nombre || '';
+                    const originalEcon = econ;
+                    const found = (flota || []).find(f => String(f.economico) === String(target));
+                    const nuevaUnidad = found ? (found.unidad || '') : (p.Unidad || '');
+
+                    // Usar transacción emulada: crear → eliminar → rollback si falla
+                    // Esto garantiza que siempre se crea una fila nueva con los datos correctos
+                    const nuevoPedido = Object.assign({}, p, { 'Económico': String(target), 'Unidad': nuevaUnidad });
+                    let created = null;
+                    try {
+                        created = await guardarReservaEnSheetDB(nuevoPedido);
+                    } catch (createErr) {
+                        console.warn('Error creando nueva fila en SheetDB:', createErr);
+                        created = null;
+                    }
+
+                    if (!created) {
+                        console.warn('No se pudo crear nueva fila para transacción, no se realizará eliminación para evitar pérdida de datos.');
+                        return; // saltar este pedido
+                    }
+
+                    // intentar eliminar la fila original
+                    let deleted = false;
+                    try {
+                        deleted = await eliminarReservaDeSheetDB(originalEcon, originalNombre);
+                    } catch (delErr) {
+                        console.warn('Error al eliminar fila original tras crear nueva:', delErr);
+                        deleted = false;
+                    }
+
+                    if (!deleted) {
+                        // intentar rollback: eliminar la fila creada usando row_id si está disponible
+                        let createdRowId = created && (created.row_id || created.id || created._id || (created[0] && (created[0].row_id || created[0].id || created[0]._id)));
+                        let rollbackOk = false;
+                        try {
+                            if (createdRowId) {
+                                rollbackOk = await eliminarFilaPorRowId(createdRowId);
+                            } else {
+                                // intentar eliminar por valores (econ + nombre) del nuevo
+                                rollbackOk = await eliminarReservaDeSheetDB(String(target), nuevoPedido.Nombre || originalNombre);
+                            }
+                        } catch (rbErr) {
+                            console.warn('Rollback error:', rbErr);
+                            rollbackOk = false;
+                        }
+
+                        if (!rollbackOk) {
+                            console.error('Rollback falló: es posible que exista un duplicado en SheetDB. Revisa manualmente.');
+                        } else {
+                            console.warn('Rollback exitoso: se eliminó la fila creada porque no se pudo eliminar la original.');
+                        }
+                    }
+                }));
+            } catch (e) {
+                console.warn('Error durante sincronización con SheetDB:', e);
+            }
+
+            // Actualizar propiedades dentro de los pedidos migrados (local)
+            sourceArr.forEach(p => {
+                p.Económico = target;
+                const found = (flota || []).find(f => String(f.economico) === String(target));
+                if (found) p.Unidad = found.unidad || p.Unidad || '';
+            });
+
+            // Mover los elementos localmente
+            pendingAsignaciones[target].push(...sourceArr);
+            delete pendingAsignaciones[econ];
+
+            // Actualizar UI y estado
+            renderPendingAsignaciones();
+            Swal.fire('Asignado', `Reservas movidas a la unidad ${target} y sincronizadas.`, 'success');
+
+            // Sincronizar input y pedidoCamion
+            const inputEco = document.getElementById('inputPedidoNumEconomico'); if (inputEco) { inputEco.value = target; inputEco.disabled = false; }
+            const foundCam = (flota || []).find(f => String(f.economico) === String(target));
+            if (foundCam) { pedidoCamion = foundCam; pedidoCamion.economico = target; } else if (pedidoCamion) { pedidoCamion.economico = target; }
+            try { actualizarGraficas(); } catch (e) { console.warn(e); }
+        });
 
         btnFinalizar.addEventListener('click', async () => {
             try {
@@ -9875,7 +10120,36 @@ function renderPendingAsignaciones() {
 
     // inicial render
     renderDetalle(select.value);
-    select.addEventListener('change', () => renderDetalle(select.value));
+    select.addEventListener('change', () => {
+        renderDetalle(select.value);
+        // Al cambiar la selección de camión pendiente, actualizar solo el número económico
+        try {
+            const econ = select.value;
+            const inputEco = document.getElementById('inputPedidoNumEconomico');
+            if (inputEco) {
+                inputEco.value = econ;
+                inputEco.disabled = false; // permitir edición si el usuario quiere
+            }
+
+            // Buscar en la flota para obtener capacidades y nombre de unidad
+            const found = flota.find(f => String(f.economico) === String(econ));
+            if (found) {
+                // Reemplazar pedidoCamion sólo si encontramos la definición en la flota
+                pedidoCamion = found;
+                pedidoCamion.economico = econ;
+            } else if (pedidoCamion) {
+                // Si ya existía un pedidoCamion, solo actualizar el número económico
+                pedidoCamion.economico = econ;
+            } else {
+                // Si no había ninguno, crear un objeto temporal mínimo (no sobreescribe unidad existente)
+                pedidoCamion = { economico: econ, unidad: `Camión ${econ}`, volumen: 0, "capacidad de carga (kg)": 0 };
+            }
+        } catch (e) {
+            console.warn('Error al setear pedidoCamion desde selección pendiente:', e);
+        }
+        // Actualizar gráficas principales para reflejar la selección
+        try { actualizarGraficas(); } catch (e) { console.warn(e); }
+    });
 }      
 
 // Función auxiliar para guardar el pedido actual como "Agregar otro" sin pasar por el modal de confirmación
