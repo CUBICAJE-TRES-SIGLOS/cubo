@@ -565,7 +565,7 @@
 // Función para cargar las descripciones de llantas
 async function cargarDescripcionesLlantas() { 
     try {
-        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados');
+        const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Apartados');
         if (!response.ok) {
             throw new Error('Error al cargar datos de llantas');
         }
@@ -1595,7 +1595,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('Obteniendo unidades disponibles...');
                     try {
                         // Obtener los datos de la hoja de flota
-                        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Flota');
+                        const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Flota');
                         const datosFlota = await response.json();
                         
                         console.log('Datos de flota obtenidos:', datosFlota);
@@ -1781,7 +1781,7 @@ document.addEventListener('DOMContentLoaded', function() {
                    </li>
                    <li class="nav-item" role="presentation">
                        <button class="nav-link" id="traspasos-especiales-tab" data-bs-toggle="tab" data-bs-target="#traspasosEspeciales" type="button" role="tab">
-                           Facturas
+                           traspasos
                        </button>
                    </li>
                </ul>
@@ -2001,7 +2001,7 @@ async function autocompletarBuscaBloques(inputId, dropdownId) {
 
     try {
         const coincidencias = new Set();
-        const base = 'https://sheetdb.io/api/v1/mi2hxgg4vtcjv';
+        const base = 'https://sheetdb.io/api/v1/11bmhfzsa4el3';
 
         // 1. Buscar en escaneos locales (archivosEscaneados)
         if (Array.isArray(archivosEscaneados)) {
@@ -2037,7 +2037,7 @@ async function autocompletarBuscaBloques(inputId, dropdownId) {
             console.warn('Error buscando en traspasos:', e);
         }
 
-        // 3. Buscar en "Escaneados especiales" (Facturas)
+        // 3. Buscar en "Escaneados especiales" (traspasos)
         try {
             const resEscan = await fetch(base + '?sheet=Escaneados especiales');
             if (resEscan.ok) {
@@ -2135,15 +2135,40 @@ async function buscarBloquePorFolio() {
             normalizeKey(b.nombre) === folioNorm || normalizeKey(b.datos[0]?.Folio) === folioNorm
         );
 
-        // Buscar en "Escaneados especiales" (Facturas)
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
+        // Buscar en "Escaneados especiales" (traspasos)
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => {
-            return normalizeKey(r.Nombre || r.nombre) === folioNorm || normalizeKey(r.Folio || r.folio) === folioNorm;
+            const nombre = normalizeKey(r.Nombre || r.nombre || '');
+            const fol = normalizeKey(r.Folio || r.folio || '');
+            return nombre === folioNorm || fol === folioNorm || nombre.includes(folioNorm) || fol.includes(folioNorm);
         });
 
+        // Buscar en "traspasos"
+        const restraspasos = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=traspasos');
+        let traspasosDelFolio = [];
+        if (restraspasos.ok) {
+            const traspasos = await restraspasos.json();
+            traspasosDelFolio = traspasos.filter(r => {
+                const nombre = normalizeKey(r.Nombre || r.nombre || '');
+                const fol = normalizeKey(r.Folio || r.folio || '');
+                return nombre === folioNorm || fol === folioNorm || nombre.includes(folioNorm) || fol.includes(folioNorm);
+            });
+        } else {
+            // Intentar con nombre alternativo
+            const restraspasosAlt = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=factura');
+            if (restraspasosAlt.ok) {
+                const traspasosAlt = await restraspasosAlt.json();
+                traspasosDelFolio = traspasosAlt.filter(r => {
+                    const nombre = normalizeKey(r.Nombre || r.nombre || '');
+                    const fol = normalizeKey(r.Folio || r.folio || '');
+                    return nombre === folioNorm || fol === folioNorm || nombre.includes(folioNorm) || fol.includes(folioNorm);
+                });
+            }
+        }
+
         // Buscar en la hoja "reservados"
-        const resReservados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados');
+        const resReservados = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=reservados');
         const reservados = await resReservados.json();
         
         // Agrupar reservados por nombre normalizado
@@ -2166,7 +2191,7 @@ async function buscarBloquePorFolio() {
         } else if (escaneadosDelFolio.length > 0) {
             div.innerHTML = `
                 <div class="alert alert-info mt-2">
-                    Bloque encontrado en Facturas (Escaneados especiales): ${folio}<br>
+                    Bloque encontrado en Escaneados especiales: ${folioRaw}<br>
                     Productos: ${escaneadosDelFolio.length}<br>
                     <table class="table table-bordered mt-2">
                         <thead>
@@ -2190,11 +2215,38 @@ async function buscarBloquePorFolio() {
                     </table>
                 </div>
             `;
-        } else if (reservadosAgrupados[folio]) {
-            const reservadosEncontrados = reservadosAgrupados[folio];
+        } else if (traspasosDelFolio.length > 0) {
             div.innerHTML = `
                 <div class="alert alert-info mt-2">
-                    Bloque encontrado en reservados: ${folio}<br>
+                    Bloque encontrado en traspasos: ${folioRaw}<br>
+                    Productos: ${traspasosDelFolio.length}<br>
+                    <table class="table table-bordered mt-2">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                                <th>Línea</th>
+                                <th>Cantidad</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${traspasosDelFolio.map(item => `
+                                <tr>
+                                    <td>${item.Código || item.codigo || ''}</td>
+                                    <td>${item.Descripción || item.descripcion || ''}</td>
+                                    <td>${item.Línea || item.linea || ''}</td>
+                                    <td>${item.Cantidad || item.cantidad || ''}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        } else if (reservadosAgrupados[folioNorm]) {
+            const reservadosEncontrados = reservadosAgrupados[folioNorm];
+            div.innerHTML = `
+                <div class="alert alert-info mt-2">
+                    Bloque encontrado en reservados: ${folioRaw}<br>
                     Productos: ${reservadosEncontrados.length}<br>
                     <table class="table table-bordered mt-2">
                         <thead>
@@ -2218,12 +2270,12 @@ async function buscarBloquePorFolio() {
                     </table>
                 </div>
             `;
-        } else if (folio) { // Solo mostrar mensaje de no encontrado si se ingresó un folio
-            div.innerHTML = '<div class="alert alert-danger mt-2">No se encontró ningún bloque con ese folio en traspasos, facturas o reservados.</div>';
+        } else if (folioRaw) { // Solo mostrar mensaje de no encontrado si se ingresó un folio
+            div.innerHTML = '<div class="alert alert-danger mt-2">No se encontró ningún bloque con ese folio en traspasos, traspasos o reservados.</div>';
         }
     } catch (error) {
         console.error('Error al buscar:', error);
-        if (folio) { // Solo mostrar error si se ingresó un folio
+        if (folioRaw) { // Solo mostrar error si se ingresó un folio
             div.innerHTML = '<div class="alert alert-danger mt-2">Error al buscar el bloque.</div>';
         }
     }
@@ -2246,16 +2298,20 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
     const bloquesPendientesDiv = document.getElementById('bloquesPendientes');
 
     try {
-        console.log("Iniciando búsqueda para folio:", folio);
+        console.log("=== DIAGNÓSTICO DE BÚSQUEDA ===");
+        console.log("Folio ingresado (raw):", folioRaw);
+        console.log("Folio normalizado:", folio);
         const divResultado = document.getElementById('bloqueBuscadoPedido');
         let productosAgregados = false;
 
         // 1. Buscar primero en traspasosParaGuardar (traspasos recién escaneadas)
         console.log("Buscando en traspasos recién escaneadas...", traspasosParaGuardar);
-        const traspasosRecientes = traspasosParaGuardar.filter(f => 
-            normalizeKey(f.Nombre || f.nombre) === folio ||
-            normalizeKey(f.Folio || f.folio) === folio
-        );
+        const traspasosRecientes = traspasosParaGuardar.filter(f => {
+            const nombre = normalizeKey(f.Nombre || f.nombre || '');
+            const fol = normalizeKey(f.Folio || f.folio || '');
+            return nombre === folio || fol === folio || nombre.includes(folio) || fol.includes(folio);
+
+        });
 
         if (traspasosRecientes.length > 0) {
             console.log("Encontrado en traspasos recién escaneadas:", traspasosRecientes);
@@ -2265,25 +2321,92 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
 
         // 2. Buscar en escaneados especiales
         console.log("Buscando en escaneados especiales...");
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
-        const escaneados = await resEscaneados.json();
-        
-        const escaneadosDelFolio = escaneados.filter(r => 
-            normalizeKey(r.Nombre || r.nombre) === folio ||
-            normalizeKey(r.Folio || r.folio) === folio
-        );
+        try {
+            const resEscaneados = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Escaneados especiales');
+            if (!resEscaneados.ok) {
+                const txt = await resEscaneados.text().catch(()=>'<no body>');
+                console.warn('Respuesta no OK de Escaneados especiales:', resEscaneados.status, txt);
+            } else {
+                const escaneados = await resEscaneados.json();
+                console.log("Total de registros en Escaneados especiales:", escaneados.length);
+                console.log("Buscando coincidencia de:", folio, "en registros...");
+                escaneados.slice(0, 5).forEach((r, idx) => {
+                    console.log(`  Registro ${idx}: Nombre="${r.Nombre}" | Folio="${r.Folio}" | Nombre norm="${normalizeKey(r.Nombre || r.nombre || '')}" | Folio norm="${normalizeKey(r.Folio || r.folio || '')}"`);
+                });
+                
+                const escaneadosDelFolio = escaneados.filter(r => {
+                    const nombre = normalizeKey(r.Nombre || r.nombre || '');
+                    const fol = normalizeKey(r.Folio || r.folio || '');
+                    const match = nombre === folio || fol === folio || nombre.includes(folio) || fol.includes(folio);
+                    if (match) console.log("  ✓ COINCIDENCIA:", r.Nombre, r.Folio);
+                    return match;
+                });
 
-        if (escaneadosDelFolio.length > 0) {
-            console.log("Encontrado en escaneados especiales:", escaneadosDelFolio);
-            await procesarBloquetraspasos(escaneadosDelFolio);
-            productosAgregados = true;
+                if (escaneadosDelFolio.length > 0) {
+                    console.log("Encontrado en escaneados especiales:", escaneadosDelFolio);
+                    try {
+                        await procesarBloquetraspasos(escaneadosDelFolio);
+                        productosAgregados = true;
+                    } catch (e) {
+                        console.error('Error al procesar productos de Escaneados especiales:', e);
+                        document.getElementById('bloqueBuscadoPedido').innerHTML = `<div class="alert alert-danger mt-2">Error al procesar productos de Escaneados especiales: ${e.message || e}</div>`;
+                        return;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Fetch error Escaneados especiales:', e);
+        }
+
+        // 2.5. Buscar en traspasos (sheet)
+        console.log("Buscando en traspasos (sheet)...");
+        try {
+            const restraspasos = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=traspasos');
+            if (!restraspasos.ok) {
+                const txt = await restraspasos.text().catch(()=>'<no body>');
+                console.warn('Sheet "traspasos" no OK. Status:', restraspasos.status);
+            } else {
+                const traspasosSheet = await restraspasos.json();
+                console.log("Total de registros en traspasos (sheet):", traspasosSheet.length);
+                console.log("=== PRIMEROS 10 REGISTROS EN TRASPASOS ===");
+                traspasosSheet.slice(0, 10).forEach((r, idx) => {
+                    const nombre = normalizeKey(r.Nombre || r.nombre || '');
+                    const fol = normalizeKey(r.Folio || r.folio || '');
+                    console.log(`${idx + 1}. Nombre="${r.Nombre}" (norm:"${nombre}") | Folio="${r.Folio}" (norm:"${fol}")`);
+                });
+                console.log("=== BUSCANDO COINCIDENCIA PARA: " + folio + " ===");
+                
+                const traspasosDelFolio = traspasosSheet.filter(r => {
+                    const nombre = normalizeKey(r.Nombre || r.nombre || '');
+                    const fol = normalizeKey(r.Folio || r.folio || '');
+                    const exactoNombre = nombre === folio;
+                    const exactoFolio = fol === folio;
+                    const parcialNombre = nombre.includes(folio);
+                    const parcialFolio = fol.includes(folio);
+                    const match = exactoNombre || exactoFolio || parcialNombre || parcialFolio;
+                    if (match) {
+                        console.log(`  ✓ COINCIDENCIA: "${r.Nombre}" (${exactoNombre ? 'exacto' : 'parcial'}) o "${r.Folio}" (${exactoFolio ? 'exacto' : 'parcial'})`);
+                    }
+                    return match;
+                });
+                if (traspasosDelFolio.length > 0) {
+                    console.log("Encontrado en traspasos (sheet):", traspasosDelFolio.length, "registros");
+                    await procesarBloquetraspasos(traspasosDelFolio);
+                    productosAgregados = true;
+                } else {
+                    console.log("❌ NO SE ENCONTRARON COINCIDENCIAS EN TRASPASOS (sheet)");
+                }
+            }
+        } catch (e) {
+            console.error('Fetch error traspasos (sheet):', e);
         }
 
         // 3. Buscar en bloquestraspasos
         console.log("Buscando en bloques de traspasos...");
-        const bloquesFactura = bloquestraspasos.filter(b => 
-            normalizeKey(b.nombre) === folio
-        );
+        const bloquesFactura = bloquestraspasos.filter(b => {     
+            const nombreBloque = normalizeKey(b.nombre || '');
+            return nombreBloque === folio || nombreBloque.includes(folio);
+        });
 
         if (bloquesFactura.length > 0) {
             console.log("Encontrado en bloques de traspasos:", bloquesFactura);
@@ -2295,16 +2418,33 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
 
         // 4. Buscar en reservados como última opción
         console.log("Buscando en reservados...");
-        const resReservados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados');
-        const reservados = await resReservados.json();
-        const reservadosDelFolio = reservados.filter(r => 
-            normalizeKey(r.nombre || r.Nombre || r.folio || r.Folio) === folio
-        );
-        
-        if (reservadosDelFolio.length > 0) {
-            console.log("Encontrado en reservados");
-            await procesarBloqueReservados(reservadosDelFolio);
-            productosAgregados = true;
+        try {
+            const resReservados = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=reservados');
+            if (!resReservados.ok) {
+                const txt = await resReservados.text().catch(()=>'<no body>');
+                console.warn('Respuesta no OK de reservados:', resReservados.status, txt);
+            } else {
+                const reservados = await resReservados.json();
+                const reservadosDelFolio = reservados.filter(r => {
+                    const nombre = normalizeKey(r.nombre || r.Nombre || '');
+                    const fol = normalizeKey(r.folio || r.Folio || '');
+                    return nombre === folio || fol === folio || nombre.includes(folio) || fol.includes(folio);
+                });
+                
+                if (reservadosDelFolio.length > 0) {
+                    console.log("Encontrado en reservados:", reservadosDelFolio);
+                    try {
+                        await procesarBloquetraspasos(reservadosDelFolio);
+                        productosAgregados = true;
+                    } catch (e) {
+                        console.error('Error al procesar reservados:', e);
+                        document.getElementById('bloqueBuscadoPedido').innerHTML = `<div class="alert alert-danger mt-2">Error al procesar reservados: ${e.message || e}</div>`;
+                        return;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Fetch error reservados:', e);
         }
 
         // Mostrar resultado y actualizar interfaz
@@ -2384,45 +2524,91 @@ async function buscarYAgregarBloque() {
 
         // Buscar en todas las fuentes y extraer las llantas
         // 1. Buscar en traspasos recién escaneadas
-        const traspasosRecientes = traspasosParaGuardar.filter(f => 
-            normalizeKey(f.Nombre || f.nombre) === folio ||
-            normalizeKey(f.Folio || f.folio) === folio
-        );
+        const traspasosRecientes = traspasosParaGuardar.filter(f => {
+            const nombre = normalizeKey(f.Nombre || f.nombre || '');
+            const fol = normalizeKey(f.Folio || f.folio || '');
+            return nombre === folio || fol === folio || nombre.includes(folio) || fol.includes(folio);
+        });
         if (traspasosRecientes.length > 0) {
             llantasEncontradas = llantasEncontradas.concat(traspasosRecientes);
             encontrado = true;
         }
 
         // 2. Buscar en escaneados especiales
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
-        const escaneados = await resEscaneados.json();
-        const escaneadosDelFolio = escaneados.filter(r => 
-            normalizeKey(r.Nombre || r.nombre) === folio ||
-            normalizeKey(r.Folio || r.folio) === folio
-        );
-        if (escaneadosDelFolio.length > 0) {
-            llantasEncontradas = llantasEncontradas.concat(escaneadosDelFolio);
-            encontrado = true;
+        try {
+            const resEscaneados = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Escaneados especiales');
+            if (resEscaneados.ok) {
+                const escaneados = await resEscaneados.json();
+                const escaneadosDelFolio = escaneados.filter(r => {
+                    const nombre = normalizeKey(r.Nombre || r.nombre || '');
+                    const fol = normalizeKey(r.Folio || r.folio || '');
+                    return nombre === folio || fol === folio || nombre.includes(folio) || fol.includes(folio);
+                });
+                if (escaneadosDelFolio.length > 0) {
+                    llantasEncontradas = llantasEncontradas.concat(escaneadosDelFolio);
+                    encontrado = true;
+                }
+            }
+        } catch (e) {
+            console.warn('Error buscando en Escaneados especiales:', e);
+        }
+
+        // 2.5. Buscar en Facturas
+        try {
+            const resFacturas = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=traspasos');
+            let facturas = [];
+            if (resFacturas.ok) {
+                facturas = await resFacturas.json();
+            } else {
+                // Intentar con nombre alternativo
+                const resFacturasAlt = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=traspasos');
+                if (resFacturasAlt.ok) {
+                    facturas = await resFacturasAlt.json();
+                }
+            }
+            
+            if (facturas.length > 0) {
+                const facturasDelFolio = facturas.filter(r => {
+                    const nombre = normalizeKey(r.Nombre || r.nombre || '');
+                    const fol = normalizeKey(r.Folio || r.folio || '');
+                    return nombre === folio || fol === folio || nombre.includes(folio) || fol.includes(folio);
+                });
+                if (facturasDelFolio.length > 0) {
+                    llantasEncontradas = llantasEncontradas.concat(facturasDelFolio);
+                    encontrado = true;
+                }
+            }
+        } catch (e) {
+            console.warn('Error buscando en Facturas:', e);
         }
 
         // 3. Buscar en bloques de traspasos
-        const bloquesFactura = bloquestraspasos.filter(b => 
-            normalizeKey(b.nombre) === folio
-        );
+        const bloquesFactura = bloquestraspasos.filter(b => {
+            const nombreBloque = normalizeKey(b.nombre || '');
+            return nombreBloque === folio || nombreBloque.includes(folio);
+        });
         if (bloquesFactura.length > 0) {
             llantasEncontradas = llantasEncontradas.concat(bloquesFactura[0].datos || []);
             encontrado = true;
         }
 
         // 4. Buscar en reservados
-        const resReservados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados');
-        const reservados = await resReservados.json();
-        const reservadosDelFolio = reservados.filter(r => 
-            normalizeKey(r.nombre || r.Nombre || r.folio || r.Folio) === folio
-        );
-        if (reservadosDelFolio.length > 0) {
-            llantasEncontradas = llantasEncontradas.concat(reservadosDelFolio);
-            encontrado = true;
+        try {
+            const resReservados = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=reservados');
+            if (resReservados.ok) {
+                const reservados = await resReservados.json();
+                const reservadosDelFolio = reservados.filter(r => {
+                    const nombre = normalizeKey(r.nombre || r.Nombre || '');
+                    const fol = normalizeKey(r.folio || r.Folio || '');
+                    return nombre === folio || fol === folio || nombre.includes(folio) || fol.includes(folio);
+                });
+                if (reservadosDelFolio.length > 0) {
+                    llantasEncontradas = llantasEncontradas.concat(reservadosDelFolio);
+                    encontrado = true;
+                }
+            }
+        } catch (e) {
+            console.warn('Error buscando en reservados:', e);
         }
 
         if (encontrado) {
@@ -2499,7 +2685,7 @@ async function buscarBloqueEnModo() {
         }
 
         // 2. Buscar en escaneados especiales
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
@@ -2749,7 +2935,7 @@ async function apartarUnidad(economico) {
             };
 
             // Enviar a SheetDB
-            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -2962,7 +3148,7 @@ async function agregarBloqueEnModo(continuarAgregando = false) {
             llantasParaAgregar = llantasParaAgregar.concat(traspasosRecientes);
         }
 
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
@@ -3501,7 +3687,7 @@ async function procesarBloquetraspasos(datos) {
     // ---------- Funciones para cargar datos ---------
     async function fetchInventario() {
         try {
-            const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv');
+            const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3');
             if (!res.ok) throw new Error('Error al cargar inventario');
             inventario = await res.json();
             renderInventario();
@@ -3513,7 +3699,7 @@ async function procesarBloquetraspasos(datos) {
     }
     async function fetchFlota() {
         try {
-            const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=flota');
+            const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=flota');
             if (!res.ok) throw new Error('Error al cargar flota');
             flota = await res.json();
             renderFlota();
@@ -3528,7 +3714,7 @@ async function procesarBloquetraspasos(datos) {
     async function fetchPedidosApartados() {
         try {
             // Añadir parámetro timestamp para evitar respuestas cacheadas
-            const url = `https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados&t=${Date.now()}`;
+            const url = `https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Apartados&t=${Date.now()}`;
             const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`Error al cargar pedidos Apartados: ${response.status}`);
@@ -3556,7 +3742,7 @@ async function procesarBloquetraspasos(datos) {
     }
     async function cargarReservas() {
     try {
-        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados');
+        const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=reservados');
         if (!res.ok) throw new Error('Error al cargar reservas');
         const reservas = await res.json();
         return reservas;
@@ -3867,7 +4053,7 @@ async function calcularPesosInventario() {
                     peso = Math.round(peso * 100) / 100; // Redondeo a 2 decimales
 
                     try {
-                        const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/clave/${llanta.clave}`, {
+                        const res = await fetch(`https://sheetdb.io/api/v1/11bmhfzsa4el3/clave/${llanta.clave}`, {
                             method: 'PATCH',
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({ data: { peso: peso } })
@@ -3953,7 +4139,7 @@ async function calcularPesosInventario() {
    async function eliminarLlanta(clave) {
      if (!confirm('¿Seguro que deseas eliminar esta llanta?')) return;
      try {
-       const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/clave/${clave}`, {
+       const res = await fetch(`https://sheetdb.io/api/v1/11bmhfzsa4el3/clave/${clave}`, {
          method: 'DELETE'
       });
       if (!res.ok) throw new Error('No se pudo eliminar');
@@ -3992,7 +4178,7 @@ async function guardarEdicionLlanta(clave) {
     };
 
     try {
-        const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/clave/${clave}`, {
+        const res = await fetch(`https://sheetdb.io/api/v1/11bmhfzsa4el3/clave/${clave}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: nuevosDatos })
@@ -4210,7 +4396,7 @@ async function calcularVolumenInventario() {
                 const nuevoVolumen = volumen_m3.toFixed(4);
 
                 try {
-                    const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/clave/${llanta.clave}`, {
+                    const res = await fetch(`https://sheetdb.io/api/v1/11bmhfzsa4el3/clave/${llanta.clave}`, {
                         method: 'PATCH',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ data: { volumen: nuevoVolumen } })
@@ -4351,7 +4537,7 @@ function searchInventario() {
     };
 
     try {
-        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv', {
+        const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -4443,7 +4629,7 @@ function searchInventario() {
      async function eliminarCamion(economico) {
        if (!confirm('¿Seguro que deseas eliminar este camión?')) return;
        try {
-         const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/economico/${economico}?sheet=flota`, {
+         const res = await fetch(`https://sheetdb.io/api/v1/11bmhfzsa4el3/economico/${economico}?sheet=flota`, {
            method: 'DELETE'
          });
          if (!res.ok) throw new Error('No se pudo eliminar');
@@ -4477,7 +4663,7 @@ function searchInventario() {
         volumen: document.getElementById('editCamionVolumen').value
       };
       try {
-        const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/economico/${economico}?sheet=flota`, {
+        const res = await fetch(`https://sheetdb.io/api/v1/11bmhfzsa4el3/economico/${economico}?sheet=flota`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ data: nuevosDatos })
@@ -4533,7 +4719,7 @@ function searchInventario() {
         };
 
         try {
-            const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=flota', {
+            const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=flota', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ data: nuevoDato })
@@ -4765,7 +4951,7 @@ function searchInventario() {
             
             console.log('Datos a enviar:', datosParaEnviar);
 
-            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -4819,7 +5005,7 @@ function searchInventario() {
 
         try {
             // Enviar los datos a la hoja de cálculo de Apartados
-            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -4882,7 +5068,7 @@ function searchInventario() {
             console.log('Datos preparados para enviar:', datosParaEnviar);
 
             // Enviar a SheetDB
-            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -5358,7 +5544,7 @@ function searchInventario() {
             console.log('Datos a enviar:', datosParaEnviar);
 
             // Enviar los datos a la hoja de cálculo de Apartados
-            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -5409,7 +5595,7 @@ function searchInventario() {
                 }
                 
                 // Eliminar de SheetDB usando el número económico como identificador
-                const response = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/Económico/${numeroEconomico}?sheet=Apartados`, {
+                const response = await fetch(`https://sheetdb.io/api/v1/11bmhfzsa4el3/Económico/${numeroEconomico}?sheet=Apartados`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json'
@@ -5436,7 +5622,7 @@ function searchInventario() {
     // Función para cargar datos desde SheetDB
     async function fetchPedidosConfirmados() {
         try {
-            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados');
+            const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Apartados');
             if (!response.ok) {
                 throw new Error(`Error al cargar pedidos confirmados: ${response.status}`);
             }
@@ -5459,7 +5645,7 @@ function searchInventario() {
 
     async function cargarDatosDesdeSheetDB() {
         try {
-            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados');
+            const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Apartados');
             
             if (!response.ok) {
                 throw new Error(`Error al cargar datos: ${response.status}`);
@@ -5697,7 +5883,7 @@ function searchInventario() {
 
         // Estrategia A: PATCH por id (si hay id)
         if (possibleId) {
-            const url = `https://sheetdb.io/api/v1/mi2hxgg4vtcjv/id/${encodeURIComponent(possibleId)}`;
+            const url = `https://sheetdb.io/api/v1/11bmhfzsa4el3/id/${encodeURIComponent(possibleId)}`;
             const opts = {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -5719,7 +5905,7 @@ function searchInventario() {
             const normalize = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
             const econKey = Object.keys(pedidoObj).find(k => normalize(k) === 'economico') || Object.keys(pedidoObj).find(k => normalize(k).includes('econom'));
             const columnName = econKey || 'Económico'; // fallback razonable
-            const url = `https://sheetdb.io/api/v1/mi2hxgg4vtcjv/${encodeURIComponent(columnName)}/${encodeURIComponent(economicoVal)}?sheet=Apartados`;
+            const url = `https://sheetdb.io/api/v1/11bmhfzsa4el3/${encodeURIComponent(columnName)}/${encodeURIComponent(economicoVal)}?sheet=Apartados`;
             const opts = {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -5739,7 +5925,7 @@ function searchInventario() {
 
         // Estrategia C: PUT completo por id (algunas integraciones requieren PUT a /Apartados/{id} con array)
         if (!persisted && possibleId) {
-            const url = `https://sheetdb.io/api/v1/mi2hxgg4vtcjv/Apartados/${encodeURIComponent(possibleId)}`;
+            const url = `https://sheetdb.io/api/v1/11bmhfzsa4el3/Apartados/${encodeURIComponent(possibleId)}`;
             const opts = {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -7163,7 +7349,7 @@ async function reservarPedidoActual(idx) {
         };
     
         // Guardar en la hoja de reservados
-        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados', {
+        const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=reservados', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: registroReserva })
@@ -8094,7 +8280,7 @@ async function guardarBloqueEspecial() {
         }));
 
         // Guardar en SheetDB
-        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales', {
+        const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Escaneados especiales', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: datosBloque })
@@ -8403,7 +8589,7 @@ async function agregarProductosNuevosAlInventario(productos) {
             });
         }
 
-        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv', {
+        const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: datosParaGuardar })
@@ -8465,7 +8651,7 @@ async function cargarEscaneosGuardados(filtro = '', silencioso = false) {
             console.log('Iniciando carga de escaneos guardados...');
         }
         
-        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
+        const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Escaneados especiales');
         if (!response.ok) throw new Error('Error al cargar escaneos');
         
         const datos = await response.json();
@@ -8571,7 +8757,7 @@ function renderTable() {
 function mostrarBloquesGuardadosEspeciales() {
     const container = document.getElementById('bloquesGuardadosEspeciales');
     
-    fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales')
+    fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Escaneados especiales')
         .then(response => response.json())
         .then(datos => {
             // Agrupar por nombre de bloque
@@ -8631,7 +8817,7 @@ async function eliminarBloqueEspecial(nombre) {
     if (!confirm(`¿Está seguro de eliminar el bloque "${nombre}"?`)) return;
 
     try {
-        const response = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/Nombre/${encodeURIComponent(nombre)}?sheet=Escaneados especiales`, {
+        const response = await fetch(`https://sheetdb.io/api/v1/11bmhfzsa4el3/Nombre/${encodeURIComponent(nombre)}?sheet=Escaneados especiales`, {
             method: 'DELETE'
         });
 
@@ -8747,7 +8933,7 @@ async function confirmarGuardadoEscaneo() {
             Descripción: item.Descripcion || ''  // Notar la tilde en 'Descripción'
         }));
 
-        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales', {
+        const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Escaneados especiales', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: datosParaGuardar })
@@ -9169,7 +9355,7 @@ async function guardarReservaEnSheetDB(pedidoObj) {
             "Volumen": pedidoObj.Volumen || "",
             "Peso": pedidoObj.Peso || ""
         };
-        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Camiones pendientes', {
+        const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Camiones pendientes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: [dataToSave] })
@@ -9183,7 +9369,7 @@ async function guardarReservaEnSheetDB(pedidoObj) {
 // Función para cargar reservas desde SheetDB al inicializar
 async function cargarReservasDePendientes() {
     try {
-        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Camiones pendientes');
+        const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Camiones pendientes');
         if (!res.ok) return;
         const datos = await res.json();
         pendingAsignaciones = {};
@@ -9208,82 +9394,147 @@ async function cargarReservasDePendientes() {
     }
 }
 
-// Función para eliminar una reserva de SheetDB por ID o campos únicos
-async function eliminarReservaDeSheetDB(economico, nombre) {
+// Eliminar una reserva de SheetDB (hoja: 'Camiones pendientes').
+// Si la eliminación directa falla (p. ej. CORS/Failed to fetch), se intentará archivar la fila
+// en la hoja 'Camiones pendientes eliminados' como fallback lógico.
+async function archiveRowAsFallback(row, economico, nombre) {
     try {
-        const base = 'https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Camiones pendientes';
-        let eliminado = false;
+        const archiveSheet = 'Camiones pendientes eliminados';
+        const baseUrl = 'https://sheetdb.io/api/v1/11bmhfzsa4el3';
 
-        console.log('🔍 Iniciando eliminación para - Económico:', economico, 'Nombre:', nombre);
+        // preparar objeto para archivar (normalizar nombres de columnas)
+        const dataToArchive = Object.assign({}, row, {
+            _archived_from: 'Camiones pendientes',
+            _archived_at: new Date().toISOString(),
+            _archived_economico: economico || '',
+            _archived_nombre: nombre || ''
+        });
 
-        // Eliminar de "Camiones pendientes" ÚNICAMENTE
-        try {
-            const sheetName = encodeURIComponent('Camiones pendientes');
-            
-            console.log('📥 Obteniendo todos los registros de "Camiones pendientes"...');
-            const getRes = await fetch(base + `?sheet=${sheetName}`);
-            if (getRes.ok) {
-                const rows = await getRes.json();
-                console.log('📊 Total de registros encontrados en "Camiones pendientes":', rows.length);
-                console.log('📋 Todos los registros:', JSON.stringify(rows, null, 2));
-                
-                if (Array.isArray(rows)) {
-                    // Buscar coincidencias
-                    const toDelete = rows.filter(r => {
-                        const ecoRow = (r.Económico || r.economico || '').toString().trim();
-                        const nombreRow = (r.Nombre || r.nombre || '').toString().trim().toLowerCase();
-                        const ecoSearch = economico.toString().trim();
-                        const nombreSearch = nombre.toString().trim().toLowerCase();
-                        
-                        const match = ecoRow === ecoSearch && nombreRow === nombreSearch;
-                        console.log(`  Comparando: ecoRow="${ecoRow}" vs ecoSearch="${ecoSearch}" | nombreRow="${nombreRow}" vs nombreSearch="${nombreSearch}" => Match: ${match}`);
-                        return match;
-                    });
-                    
-                    console.log('🎯 Registros a eliminar:', toDelete.length);
-                    console.log('📌 Detalles de registros a eliminar:', JSON.stringify(toDelete, null, 2));
-                    
-                    // Eliminar cada fila encontrada
-                    for (const row of toDelete) {
-                        const rowId = row.id || row.ID;
-                        console.log('🗑️ Intentando eliminar fila con ID:', rowId, 'Datos:', JSON.stringify(row));
-                        
-                        if (rowId) {
-                            const delRes = await fetch(base + `/${encodeURIComponent(rowId)}?sheet=${sheetName}`, { method: 'DELETE' });
-                            console.log('   Respuesta DELETE por ID:', delRes.status, delRes.statusText);
-                            if (delRes.ok) {
-                                console.log('✅ Eliminado de Camiones pendientes (por ID):', economico, nombre);
-                                eliminado = true;
-                            }
-                        } else {
-                            // Fallback: eliminar por filtro
-                            const filtro = `?sheet=${sheetName}&Económico=${encodeURIComponent(economico)}&Nombre=${encodeURIComponent(nombre)}`;
-                            const delRes = await fetch(base + filtro, { method: 'DELETE' });
-                            console.log('   Respuesta DELETE por filtro:', delRes.status, delRes.statusText);
-                            if (delRes.ok) {
-                                console.log('✅ Eliminado de Camiones pendientes (por filtro):', economico, nombre);
-                                eliminado = true;
-                            }
-                        }
-                    }
-                }
-            } else {
-                console.error('❌ Error al obtener datos de "Camiones pendientes":', getRes.status, getRes.statusText);
-            }
-        } catch (e) {
-            console.error('❌ Error al eliminar de Camiones pendientes:', e);
-        }
-
-        if (!eliminado) {
-            console.warn('⚠️ No se encontró ningún registro para eliminar en "Camiones pendientes":', economico, nombre);
-        }
-        
-        return eliminado;
+        const res = await fetch(`${baseUrl}?sheet=${encodeURIComponent(archiveSheet)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: [dataToArchive] })
+        });
+        if (!res.ok) throw new Error('No se pudo archivar la fila (status ' + res.status + ')');
+        console.log('🗄️ Fila archivada en', archiveSheet);
+        return true;
     } catch (e) {
-        console.error('❌ Error general en eliminarReservaDeSheetDB:', e);
+        console.warn('⚠️ archiveRowAsFallback error:', e);
         return false;
     }
 }
+
+async function eliminarReservaDeSheetDB(economico, nombre) {
+    const baseUrl = 'https://sheetdb.io/api/v1/11bmhfzsa4el3';
+    const sheetCandidates = ['Camiones pendientes', 'camiones pendientes'];
+
+    try {
+        console.log('🔍 eliminarReservaDeSheetDB iniciado para', economico, nombre);
+
+        // Probar ambas variantes del nombre de la hoja y usar la que responda
+        let rows = null;
+        let usedSheet = null;
+        for (const sheetName of sheetCandidates) {
+            try {
+                const getRes = await fetch(`${baseUrl}?sheet=${encodeURIComponent(sheetName)}`);
+                if (!getRes.ok) {
+                    console.warn('⚠️ lectura en hoja', sheetName, 'respondió', getRes.status);
+                    continue;
+                }
+                const j = await getRes.json();
+                if (Array.isArray(j)) {
+                    rows = j;
+                    usedSheet = sheetName;
+                    console.log('📥 Usando hoja:', sheetName, 'con', rows.length, 'filas');
+                    break;
+                }
+            } catch (e) {
+                console.warn('⚠️ Error leyendo hoja', sheetName, e);
+                continue;
+            }
+        }
+
+        if (!rows || !usedSheet) {
+            console.error('❌ No se pudo leer ninguna variante de la hoja Camiones pendientes');
+            return false;
+        }
+
+        const ecoSearch = normalizeKey(economico || '');
+        const nombreSearch = normalizeKey(nombre || '');
+
+        const matches = rows.filter(r => {
+            const ecoRaw = r['Económico'] || r['Economico'] || r.economico || '';
+            const nombreRaw = r['Nombre'] || r.nombre || r.NOMBRE || '';
+            return normalizeKey(ecoRaw) === ecoSearch && (normalizeKey(nombreRaw) === nombreSearch || normalizeKey(nombreRaw).includes(nombreSearch));
+        });
+
+        if (matches.length === 0) {
+            console.warn('⚠️ No se encontraron coincidencias para eliminar en', usedSheet, ':', economico, nombre);
+            return false;
+        }
+
+        let anyDeleted = false;
+        for (const row of matches) {
+            // Estrategia 1: Borrar por row_id (más confiable)
+            const possibleIds = [row.row_id, row.id, row.ID, row._id];
+            const rid = possibleIds.find(x => x !== undefined && x !== null && String(x).trim() !== '');
+
+            if (rid) {
+                try {
+                    const delRes = await fetch(`${baseUrl}/row_id/${encodeURIComponent(rid)}?sheet=${encodeURIComponent(usedSheet)}`, { method: 'DELETE' });
+                    if (delRes.ok) {
+                        console.log('✅ Eliminado por row_id', rid, 'en', usedSheet);
+                        anyDeleted = true;
+                        continue;
+                    } else {
+                        console.warn('⚠️ DELETE por row_id respondió:', delRes.status);
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Error DELETE por row_id:', e);
+                }
+            }
+
+            // Estrategia 2: Borrar por column/value (SheetDB espera parámetros separados)
+            // Primero, intentar borrar por Económico
+            try {
+                const delRes = await fetch(`${baseUrl}?sheet=${encodeURIComponent(usedSheet)}&column=Económico&value=${encodeURIComponent(economico)}`, { method: 'DELETE' });
+                if (delRes.ok) {
+                    console.log('✅ Eliminado por column=Económico&value en', usedSheet);
+                    anyDeleted = true;
+                    continue;
+                } else {
+                    console.warn('⚠️ DELETE por column=Económico respondió:', delRes.status);
+                }
+            } catch (e) {
+                console.warn('⚠️ Error DELETE por column=Económico:', e);
+            }
+
+            // Estrategia 3: Intentar sin tilde (Economico)
+            try {
+                const delRes = await fetch(`${baseUrl}?sheet=${encodeURIComponent(usedSheet)}&column=Economico&value=${encodeURIComponent(economico)}`, { method: 'DELETE' });
+                if (delRes.ok) {
+                    console.log('✅ Eliminado por column=Economico (sin tilde)&value en', usedSheet);
+                    anyDeleted = true;
+                    continue;
+                } else {
+                    console.warn('⚠️ DELETE por column=Economico respondió:', delRes.status);
+                }
+            } catch (e) {
+                console.warn('⚠️ Error DELETE por column=Economico (sin tilde):', e);
+            }
+
+            // Si ninguna estrategia funcionó, registrar que no se pudo eliminar
+            console.warn('⚠️ No se pudo eliminar la fila para', economico, nombre, '— archivado lógico no implementado (fallback)');
+        }
+
+        return anyDeleted;
+    } catch (e) {
+        console.error('❌ eliminarReservaDeSheetDB error:', e);
+        return false;
+    }
+}
+
+
 
 // Nueva versión de aceptarPedido: permite "Agregar otro cliente" (guardar temporalmente)
 async function aceptarPedido() {
@@ -9451,7 +9702,7 @@ async function aceptarPedido() {
         loteEnviar.push(pedidoObj);
 
         // Enviar lote a SheetDB (cada objeto será creada como fila separada)
-        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
+        const response = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Apartados', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: loteEnviar })
@@ -9561,7 +9812,7 @@ function renderPendingAsignaciones() {
         btnFinalizar.addEventListener('click', async () => {
             try {
                 const pedidosAEnviar = pendingAsignaciones[econ] || [];
-                const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
+                const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Apartados', {
                     method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ data: pedidosAEnviar })
                 });
                 if (!res.ok) throw new Error('Error al enviar reservas');
@@ -9814,7 +10065,7 @@ function renderPedidosApartados() {
             'Valor Total ($)': (Number(pedido.valor) / llantas.length).toFixed(2)
         }));
 
-        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados', {
+        const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=reservados', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: registrosReserva })
@@ -9822,7 +10073,7 @@ function renderPedidosApartados() {
 
         if (!res.ok) throw new Error('Error al guardar reserva');
 
-        await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/camion/${pedido.camion}?sheet=Apartados`, {
+        await fetch(`https://sheetdb.io/api/v1/11bmhfzsa4el3/camion/${pedido.camion}?sheet=Apartados`, {
             method: 'DELETE'
         });
 
@@ -10040,7 +10291,7 @@ async function agregarNuevosProductosAlInventario(productos) {
         }
 
         // Obtener inventario actual
-        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv');
+        const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3');
         if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
         const inventarioActual = await res.json();
 
@@ -10110,7 +10361,7 @@ async function agregarNuevosProductosAlInventario(productos) {
 
             if (productosValidos.length > 0) {
                 try {
-                    const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv', {
+                    const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ data: productosValidos })
@@ -10408,7 +10659,7 @@ document.getElementById('btnTerminarBloqueFactura').onclick = async () => {
 // Guardar en SheetDB (más rápido: POST en lote)
 async function guardartraspasosEnSheetDB(traspasos) {
     try {
-        await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=traspasos', {
+        await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=traspasos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: traspasos }) // Enviar array
@@ -10560,7 +10811,7 @@ async function actualizarBloquestraspasos() {
     try {
         console.log('Iniciando actualización de bloques de traspasos...');
         
-        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=traspasos');
+        const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=traspasos');
         if (!res.ok) throw new Error(`No se pudo cargar traspasos. Status: ${res.status}`);
         
         const traspasos = await res.json();
@@ -11686,12 +11937,12 @@ async function eliminarBloqueFactura(idx) {
     // 1. Obtén todas las filas con ese nombre
     let errores = 0;
     try {
-        const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/Nombre/${encodeURIComponent(nombreBloque)}?sheet=traspasos`);
+        const res = await fetch(`https://sheetdb.io/api/v1/11bmhfzsa4el3/Nombre/${encodeURIComponent(nombreBloque)}?sheet=traspasos`);
         const traspasos = await res.json();
         // 2. Elimina cada una por su row_id
         for (const factura of traspasos) {    
             if (factura.row_id) {
-                const delRes = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/row_id/${factura.row_id}?sheet=traspasos`, {
+                const delRes = await fetch(`https://sheetdb.io/api/v1/11bmhfzsa4el3/row_id/${factura.row_id}?sheet=traspasos`, {
                     method: 'DELETE'
                 });
                 if (!delRes.ok) errores++;
@@ -11717,7 +11968,7 @@ document.getElementById('traspasosearchFolio').addEventListener('input', functio
 // Al cargar la pestaña, carga los bloques desde SheetDB
 document.querySelector('button[data-tab="traspasos"]').addEventListener('click', async () => {
     try {
-        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=traspasos');
+        const res = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=traspasos');
         if (!res.ok) throw new Error('No se pudo cargar traspasos');
         const traspasos = await res.json();
         bloquestraspasos = [];
@@ -11825,7 +12076,7 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
         }
 
     // Usar URL completa para evitar 'Failed to fetch' cuando se ejecuta desde file:// o distinto origen
-    const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
+    const resEscaneados = await fetch('https://sheetdb.io/api/v1/11bmhfzsa4el3?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
