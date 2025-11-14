@@ -1007,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div style="margin-bottom: 10px;">
              <label for="inputFolioFacturaPedido"><b>Folio de Factura:</b></label>
              <div class="input-group" style="margin: 10px 0;">
-                 <input type="text" id="inputFolioFacturaPedido" class="form-control" placeholder="Escribe el folio para buscar" style="margin-left:8px;"/>
+                 <input type="text" id="inputFolioFacturaPedido" class="form-control" placeholder="Escribe el folio para buscar" style="margin-left:8px;" oninput="autocompletarBuscaBloques('inputFolioFacturaPedido', 'dropdownAutocompleteBloquesPedido')" />
                  <div class="input-group-append" style="display: flex; gap: 5px; margin-left: 5px;">
                      <button class="primary" onclick="buscarBloquePorFolio()">Buscar bloque</button>
                      <button class="primary" onclick="agregarBloquePorFolioPedido(false)">Agregar bloque</button>
@@ -1160,7 +1160,8 @@ document.addEventListener('DOMContentLoaded', function() {
                            id="inputBusquedaBloqueNuevo" 
                            class="form-control" 
                            placeholder="Escribe el folio para buscar" 
-                           style="margin-left:8px;"/>
+                           style="margin-left:8px;"
+                           oninput="autocompletarBuscaBloques('inputBusquedaBloqueNuevo', 'dropdownAutocompleteBloquesNuevo')" />
                     <div class="input-group-append" style="display: flex; gap: 5px; margin-left: 5px;">
                         <button class="primary" onclick="buscarBloqueEnModo()">
                             <i class="bi bi-search"></i> Buscar bloque
@@ -1968,41 +1969,190 @@ function safeNum(v) {
         }
         return undefined;
     }
+
+    // Normaliza cadenas para comparaciones (quita tildes, caracteres extra y espacios)
+    function normalizeKey(s) {
+        if (!s && s !== 0) return '';
+        try {
+            return String(s)
+                .normalize('NFKD') // separar acentos
+                .replace(/\p{Diacritic}/gu, '')
+                .replace(/[\u200B-\u200D\uFEFF]/g, '') // eliminar chars invisibles
+                .replace(/[^\w\s\-]/g, ' ') // reemplazar símbolos por espacio
+                .replace(/\s+/g, ' ') // normalizar espacios
+                .trim()
+                .toLowerCase();
+        } catch (e) {
+            return String(s).toLowerCase().trim();
+        }
+    }
+
+// ========== AUTOCOMPLETADO GENÉRICO PARA BLOQUES ==========
+async function autocompletarBuscaBloques(inputId, dropdownId) {
+    const inputElement = document.getElementById(inputId);
+    const raw = (inputElement.value || '').trim();
+    const search = normalizeKey(raw);
+
+    if (!search) {
+        const dropdown = document.getElementById(dropdownId);
+        if (dropdown) dropdown.style.display = 'none';
+        return;
+    }
+
+    try {
+        const coincidencias = new Set();
+        const base = 'https://sheetdb.io/api/v1/mi2hxgg4vtcjv';
+
+        // 1. Buscar en escaneos locales (archivosEscaneados)
+        if (Array.isArray(archivosEscaneados)) {
+            archivosEscaneados.forEach(archivo => {
+                if (archivo.productos && Array.isArray(archivo.productos)) {
+                    archivo.productos.forEach(prod => {
+                        const nombre = normalizeKey(prod.Nombre || prod.nombre || '');
+                        const folio = normalizeKey(prod.Folio || prod.folio || '');
+                        if (nombre.includes(search) || folio.includes(search)) {
+                            coincidencias.add(prod.Nombre || prod.Folio || prod.nombre || prod.folio || 'Sin nombre');
+                        }
+                    });
+                }
+            });
+        }
+
+        // 2. Buscar en "traspasos" 
+        try {
+            const resTrasp = await fetch(base + '?sheet=traspasos');
+            if (resTrasp.ok) {
+                const traspasos = await resTrasp.json();
+                if (Array.isArray(traspasos)) {
+                    traspasos.forEach(t => {
+                        const nombre = normalizeKey(t.Nombre || t.nombre || '');
+                        const folio = normalizeKey(t.Folio || t.folio || '');
+                        if (nombre.includes(search) || folio.includes(search)) {
+                            coincidencias.add(t.Nombre || t.Folio || t.nombre || t.folio || 'Sin nombre');
+                        }
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn('Error buscando en traspasos:', e);
+        }
+
+        // 3. Buscar en "Escaneados especiales" (Facturas)
+        try {
+            const resEscan = await fetch(base + '?sheet=Escaneados especiales');
+            if (resEscan.ok) {
+                const escaneados = await resEscan.json();
+                if (Array.isArray(escaneados)) {
+                    escaneados.forEach(e => {
+                        const nombre = normalizeKey(e.Nombre || e.nombre || '');
+                        const folio = normalizeKey(e.Folio || e.folio || '');
+                        if (nombre.includes(search) || folio.includes(search)) {
+                            coincidencias.add(e.Nombre || e.Folio || e.nombre || e.folio || 'Sin nombre');
+                        }
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn('Error buscando en Escaneados especiales:', e);
+        }
+
+        // Mostrar dropdown con resultados
+        mostrarDropdownBloques(dropdownId, inputId, Array.from(coincidencias).slice(0, 10));
+
+    } catch (error) {
+        console.error('Error en autocompletarBuscaBloques:', error);
+    }
+}
+
+function mostrarDropdownBloques(dropdownId, inputId, coincidencias) {
+    let dropdownDiv = document.getElementById(dropdownId);
+    if (!dropdownDiv) {
+        dropdownDiv = document.createElement('div');
+        dropdownDiv.id = dropdownId;
+        dropdownDiv.style.cssText = `
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            min-width: 350px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            margin-top: 2px;
+        `;
+        const inputElement = document.getElementById(inputId);
+        const parentDiv = inputElement.parentElement.parentElement;
+        parentDiv.style.position = 'relative';
+        parentDiv.appendChild(dropdownDiv);
+    }
+
+    if (coincidencias.length === 0) {
+        dropdownDiv.innerHTML = '<div style="padding: 8px 12px; color: #999;">Sin resultados</div>';
+    } else {
+        dropdownDiv.innerHTML = coincidencias.map(item => `
+            <div onclick="seleccionarBloqueAutocompletado('${inputId}', '${item}')" style="
+                padding: 10px 12px;
+                cursor: pointer;
+                border-bottom: 1px solid #eee;
+                font-size: 13px;
+                font-weight: 500;
+                color: #333;
+            " onmouseover="this.style.backgroundColor='#f5f5f5'" onmouseout="this.style.backgroundColor='white'">
+                📦 ${item}
+            </div>
+        `).join('');
+    }
+
+    dropdownDiv.style.display = 'block';
+}
+
+function ocultarDropdownBloques(dropdownId) {
+    const dropdown = document.getElementById(dropdownId);
+    if (dropdown) dropdown.style.display = 'none';
+}
+
+function seleccionarBloqueAutocompletado(inputId, valor) {
+    document.getElementById(inputId).value = valor;
+    const dropdownId = inputId === 'inputFolioFacturaPedido' ? 'dropdownAutocompleteBloquesPedido' : 'dropdownAutocompleteBloquesNuevo';
+    ocultarDropdownBloques(dropdownId);
+}
+
 async function buscarBloquePorFolio() {
-    const folio = document.getElementById('inputFolioFacturaPedido').value.trim();
+    const folioRaw = document.getElementById('inputFolioFacturaPedido').value.trim();
     const div = document.getElementById('bloqueBuscadoPedido');
-    
+    const folioNorm = normalizeKey(folioRaw);
+
     // Si no hay folio, limpiar el div y retornar
-    if (!folio) {
+    if (!folioRaw) {
         div.innerHTML = '';
         return;
     }
-    
+
     try {
-        // Buscar primero en bloquestraspasos
+        // Buscar primero en bloquestraspasos (normalizando)
         const bloque = bloquestraspasos.find(b => 
-            b.nombre === folio || (b.datos[0]?.Folio === folio)
+            normalizeKey(b.nombre) === folioNorm || normalizeKey(b.datos[0]?.Folio) === folioNorm
         );
 
         // Buscar en "Escaneados especiales" (Facturas)
         const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
-        const escaneadosDelFolio = escaneados.filter(r => 
-            r.Nombre?.toLowerCase() === folio.toLowerCase() ||
-            r.nombre?.toLowerCase() === folio.toLowerCase() ||
-            r.Folio?.toLowerCase() === folio.toLowerCase()
-        );
+        const escaneadosDelFolio = escaneados.filter(r => {
+            return normalizeKey(r.Nombre || r.nombre) === folioNorm || normalizeKey(r.Folio || r.folio) === folioNorm;
+        });
 
         // Buscar en la hoja "reservados"
         const resReservados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados');
         const reservados = await resReservados.json();
         
-        // Agrupar reservados por nombre
+        // Agrupar reservados por nombre normalizado
         const reservadosAgrupados = reservados.reduce((grupos, item) => {
-            if (!grupos[item.nombre]) {
-                grupos[item.nombre] = [];
+            const key = normalizeKey(item.nombre || item.Nombre || item.folio || item.Folio || '');
+            if (!grupos[key]) {
+                grupos[key] = [];
             }
-            grupos[item.nombre].push(item);
+            grupos[key].push(item);
             return grupos;
         }, {});
 
@@ -2086,8 +2236,9 @@ document.getElementById('inputFolioFacturaPedido').addEventListener('input', fun
 });
 // Pega aquí:
 async function agregarBloquePorFolioPedido(agregarMas = false) {
-    const folio = document.getElementById('inputFolioFacturaPedido').value.trim().toLowerCase();
-    if (!folio) {
+    const folioRaw = document.getElementById('inputFolioFacturaPedido').value.trim();
+    const folio = normalizeKey(folioRaw);
+    if (!folioRaw) {
         alert('Escribe un folio válido.');
         return;
     }
@@ -2102,8 +2253,8 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
         // 1. Buscar primero en traspasosParaGuardar (traspasos recién escaneadas)
         console.log("Buscando en traspasos recién escaneadas...", traspasosParaGuardar);
         const traspasosRecientes = traspasosParaGuardar.filter(f => 
-            f.Nombre?.toLowerCase() === folio ||
-            f.Folio?.toLowerCase() === folio
+            normalizeKey(f.Nombre || f.nombre) === folio ||
+            normalizeKey(f.Folio || f.folio) === folio
         );
 
         if (traspasosRecientes.length > 0) {
@@ -2118,8 +2269,8 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
         const escaneados = await resEscaneados.json();
         
         const escaneadosDelFolio = escaneados.filter(r => 
-            r.Nombre?.toLowerCase() === folio ||
-            r.nombre?.toLowerCase() === folio
+            normalizeKey(r.Nombre || r.nombre) === folio ||
+            normalizeKey(r.Folio || r.folio) === folio
         );
 
         if (escaneadosDelFolio.length > 0) {
@@ -2131,7 +2282,7 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
         // 3. Buscar en bloquestraspasos
         console.log("Buscando en bloques de traspasos...");
         const bloquesFactura = bloquestraspasos.filter(b => 
-            b.nombre.toLowerCase() === folio
+            normalizeKey(b.nombre) === folio
         );
 
         if (bloquesFactura.length > 0) {
@@ -2147,7 +2298,7 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
         const resReservados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados');
         const reservados = await resReservados.json();
         const reservadosDelFolio = reservados.filter(r => 
-            r.nombre?.toLowerCase() === folio
+            normalizeKey(r.nombre || r.Nombre || r.folio || r.Folio) === folio
         );
         
         if (reservadosDelFolio.length > 0) {
@@ -2210,10 +2361,11 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
 
 // Nueva función para buscar y agregar bloques
 async function buscarYAgregarBloque() {
-    const folio = document.getElementById('inputBusquedaBloque').value.trim().toLowerCase();
+    const folioRaw = document.getElementById('inputBusquedaBloque').value.trim();
+    const folio = normalizeKey(folioRaw);
     const resultadoDiv = document.getElementById('resultadoBusquedaBloque');
     
-    if (!folio) {
+    if (!folioRaw) {
         resultadoDiv.innerHTML = `
             <div class="alert alert-warning">
                 <i class="bi bi-exclamation-circle"></i> Por favor, ingrese un folio válido.
@@ -2233,8 +2385,8 @@ async function buscarYAgregarBloque() {
         // Buscar en todas las fuentes y extraer las llantas
         // 1. Buscar en traspasos recién escaneadas
         const traspasosRecientes = traspasosParaGuardar.filter(f => 
-            f.Nombre?.toLowerCase() === folio ||
-            f.Folio?.toLowerCase() === folio
+            normalizeKey(f.Nombre || f.nombre) === folio ||
+            normalizeKey(f.Folio || f.folio) === folio
         );
         if (traspasosRecientes.length > 0) {
             llantasEncontradas = llantasEncontradas.concat(traspasosRecientes);
@@ -2245,8 +2397,8 @@ async function buscarYAgregarBloque() {
         const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
-            r.Nombre?.toLowerCase() === folio ||
-            r.nombre?.toLowerCase() === folio
+            normalizeKey(r.Nombre || r.nombre) === folio ||
+            normalizeKey(r.Folio || r.folio) === folio
         );
         if (escaneadosDelFolio.length > 0) {
             llantasEncontradas = llantasEncontradas.concat(escaneadosDelFolio);
@@ -2255,7 +2407,7 @@ async function buscarYAgregarBloque() {
 
         // 3. Buscar en bloques de traspasos
         const bloquesFactura = bloquestraspasos.filter(b => 
-            b.nombre.toLowerCase() === folio
+            normalizeKey(b.nombre) === folio
         );
         if (bloquesFactura.length > 0) {
             llantasEncontradas = llantasEncontradas.concat(bloquesFactura[0].datos || []);
@@ -2266,7 +2418,7 @@ async function buscarYAgregarBloque() {
         const resReservados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados');
         const reservados = await resReservados.json();
         const reservadosDelFolio = reservados.filter(r => 
-            r.nombre?.toLowerCase() === folio
+            normalizeKey(r.nombre || r.Nombre || r.folio || r.Folio) === folio
         );
         if (reservadosDelFolio.length > 0) {
             llantasEncontradas = llantasEncontradas.concat(reservadosDelFolio);
@@ -2283,7 +2435,7 @@ async function buscarYAgregarBloque() {
         } else {
             resultadoDiv.innerHTML = `
                 <div class="alert alert-danger">
-                    <i class="bi bi-x-circle"></i> No se encontró ningún bloque con el folio "${folio}".
+                    <i class="bi bi-x-circle"></i> No se encontró ningún bloque con el folio "${folioRaw}".
                 </div>`;
         }
 
@@ -2316,10 +2468,11 @@ function mostrarResultadoBloque(resultadoDiv, folio, tipo, datos) {
 
 // Funciones para el nuevo buscador de bloques
 async function buscarBloqueEnModo() {
-    const folio = document.getElementById('inputBusquedaBloqueNuevo').value.trim().toLowerCase();
+    const folioRaw = document.getElementById('inputBusquedaBloqueNuevo').value.trim();
+    const folio = normalizeKey(folioRaw);
     const divResultado = document.getElementById('resultadoBusquedaBloqueNuevo');
     
-    if (!folio) {
+    if (!folioRaw) {
         divResultado.innerHTML = `
             <div class="alert alert-warning">
                 <i class="bi bi-exclamation-circle"></i> Por favor, ingrese un folio válido.
@@ -2337,8 +2490,8 @@ async function buscarBloqueEnModo() {
 
         // 1. Buscar en traspasos recién escaneadas
         const traspasosRecientes = traspasosParaGuardar.filter(f => 
-            f.Nombre?.toLowerCase() === folio ||
-            f.Folio?.toLowerCase() === folio
+            normalizeKey(f.Nombre || f.nombre) === folio ||
+            normalizeKey(f.Folio || f.folio) === folio
         );
         if (traspasosRecientes.length > 0) {
             mostrarResultadoBloqueModo(divResultado, folio, 'traspasos recientes', traspasosRecientes);
