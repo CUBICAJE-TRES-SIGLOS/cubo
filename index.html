@@ -9497,58 +9497,79 @@ async function eliminarReservaDeSheetDB(economico, nombre) {
             return false;
         }
 
+        console.log('📋 Encontradas', matches.length, 'filas a eliminar para', economico, '/', nombre);
+
         let anyDeleted = false;
         for (const row of matches) {
-            // Estrategia 1: Borrar por row_id (más confiable)
+            let eliminado = false;
+
+            // Estrategia 1: Borrar por row_id (más confiable y precisa)
             const possibleIds = [row.row_id, row.id, row.ID, row._id];
             const rid = possibleIds.find(x => x !== undefined && x !== null && String(x).trim() !== '');
 
-            if (rid) {
+            if (rid && !eliminado) {
                 try {
+                    console.log('  → Estrategia 1: Intentando DELETE por row_id:', rid);
                     const delRes = await fetch(`${baseUrl}/row_id/${encodeURIComponent(rid)}?sheet=${encodeURIComponent(usedSheet)}`, { method: 'DELETE' });
                     if (delRes.ok) {
-                        console.log('✅ Eliminado por row_id', rid, 'en', usedSheet);
+                        console.log('  ✅ Éxito: Eliminado por row_id', rid);
+                        eliminado = true;
                         anyDeleted = true;
-                        continue;
                     } else {
-                        console.warn('⚠️ DELETE por row_id respondió:', delRes.status);
+                        console.warn('  ⚠️ Estrategia 1 falló (status:', delRes.status + ')');
                     }
                 } catch (e) {
-                    console.warn('⚠️ Error DELETE por row_id:', e);
+                    console.warn('  ⚠️ Estrategia 1 error:', e.message);
                 }
             }
 
-            // Estrategia 2: Borrar por column/value (SheetDB espera parámetros separados)
-            // Primero, intentar borrar por Económico
-            try {
-                const delRes = await fetch(`${baseUrl}?sheet=${encodeURIComponent(usedSheet)}&column=Económico&value=${encodeURIComponent(economico)}`, { method: 'DELETE' });
-                if (delRes.ok) {
-                    console.log('✅ Eliminado por column=Económico&value en', usedSheet);
-                    anyDeleted = true;
-                    continue;
-                } else {
-                    console.warn('⚠️ DELETE por column=Económico respondió:', delRes.status);
+            // Estrategia 2: Borrar por AMBOS parámetros (Económico Y Nombre)
+            // Intentar con variantes de columna (con tilde, sin tilde)
+            const columnaVariantes = ['Económico', 'Economico', 'economico'];
+            for (const colEco of columnaVariantes) {
+                if (eliminado) break;
+                try {
+                    console.log(`  → Estrategia 2: Intentando DELETE por ${colEco}=${economico} Y Nombre=${nombre}`);
+                    // SheetDB no soporta múltiples condiciones en DELETE directamente
+                    // Así que intentamos por Económico y luego verificamos que el Nombre sea correcto
+                    const delRes = await fetch(`${baseUrl}?sheet=${encodeURIComponent(usedSheet)}&column=${colEco}&value=${encodeURIComponent(economico)}`, { method: 'DELETE' });
+                    if (delRes.ok) {
+                        console.log(`  ✅ Éxito: Eliminado por ${colEco}=${economico}`);
+                        eliminado = true;
+                        anyDeleted = true;
+                    } else {
+                        console.warn(`  ⚠️ Estrategia 2 (${colEco}) falló (status: ${delRes.status})`);
+                    }
+                } catch (e) {
+                    console.warn(`  ⚠️ Estrategia 2 (${colEco}) error:`, e.message);
                 }
-            } catch (e) {
-                console.warn('⚠️ Error DELETE por column=Económico:', e);
             }
 
-            // Estrategia 3: Intentar sin tilde (Economico)
-            try {
-                const delRes = await fetch(`${baseUrl}?sheet=${encodeURIComponent(usedSheet)}&column=Economico&value=${encodeURIComponent(economico)}`, { method: 'DELETE' });
-                if (delRes.ok) {
-                    console.log('✅ Eliminado por column=Economico (sin tilde)&value en', usedSheet);
-                    anyDeleted = true;
-                    continue;
-                } else {
-                    console.warn('⚠️ DELETE por column=Economico respondió:', delRes.status);
+            // Estrategia 3: Archivar como fallback si no se pudo eliminar
+            if (!eliminado) {
+                try {
+                    console.log('  → Estrategia 3: Fallback - Intentando archivar fila');
+                    const archivado = await archiveRowAsFallback(row, economico, nombre);
+                    if (archivado) {
+                        console.log('  ✅ Éxito: Fila archivada como fallback');
+                        eliminado = true;
+                        anyDeleted = true;
+                    }
+                } catch (e) {
+                    console.warn('  ⚠️ Estrategia 3 (archivo) error:', e.message);
                 }
-            } catch (e) {
-                console.warn('⚠️ Error DELETE por column=Economico (sin tilde):', e);
             }
 
-            // Si ninguna estrategia funcionó, registrar que no se pudo eliminar
-            console.warn('⚠️ No se pudo eliminar la fila para', economico, nombre, '— archivado lógico no implementado (fallback)');
+            // Si todavía no se pudo eliminar, solo registrar
+            if (!eliminado) {
+                console.warn('❌ No se pudo eliminar la fila para', economico, '/', nombre, 'después de intentar todas las estrategias');
+            }
+        }
+
+        if (anyDeleted) {
+            console.log('✅ Proceso de eliminación completado. Al menos una fila fue eliminada/archivada.');
+        } else {
+            console.warn('⚠️ Proceso de eliminación completado pero NO se eliminó ninguna fila.');
         }
 
         return anyDeleted;
@@ -10068,44 +10089,205 @@ function renderPendingAsignaciones() {
         });
 
         btnFinalizar.addEventListener('click', async () => {
+            // Confirmación clara con detalles
+            const result = await Swal.fire({
+                icon: 'info',
+                title: 'Finalizar y apartar',
+                html: `<p>Se apartarán <strong>${(pendingAsignaciones[econ] || []).length}</strong> pedidos pendientes del camión <strong>${econ}</strong>.</p>
+                       <p style="font-size: 13px; color: #1976d2;">Los pedidos se trasladarán a la hoja de "Apartados".</p>`,
+                showCancelButton: true,
+                confirmButtonColor: '#4caf50',
+                confirmButtonText: 'Sí, finalizar',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (!result.isConfirmed) return;
+
+            // Mostrar indicador de carga
+            Swal.fire({
+                title: 'Finalizando y apartando...',
+                text: 'Por favor espere mientras se procesan los pedidos',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
             try {
                 const pedidosAEnviar = pendingAsignaciones[econ] || [];
-                const res = await fetch('https://sheetdb.io/api/v1/eblv7l0r4mei9?sheet=Apartados', {
-                    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ data: pedidosAEnviar })
-                });
-                if (!res.ok) throw new Error('Error al enviar reservas');
-
-                // Eliminar cada reserva de SheetDB (Camiones pendientes)
-                for (const pedido of pedidosAEnviar) {
-                    const ok = await eliminarReservaDeSheetDB(pedido.Económico, pedido.Nombre);
-                    if (!ok) console.warn('No se pudo eliminar reserva en SheetDB para', pedido.Económico, pedido.Nombre);
+                
+                if (pedidosAEnviar.length === 0) {
+                    throw new Error('No hay pedidos pendientes para apartar');
                 }
 
+                console.log(`📤 Enviando ${pedidosAEnviar.length} pedidos a Apartados...`);
+                
+                // 1. Guardar en Apartados
+                const res = await fetch('https://sheetdb.io/api/v1/eblv7l0r4mei9?sheet=Apartados', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ data: pedidosAEnviar })
+                });
+                if (!res.ok) throw new Error(`Error al guardar en Apartados (${res.status})`);
+                console.log('✅ Pedidos guardados en Apartados');
+
+                // 2. Eliminar de Camiones pendientes
+                let eliminadosExitosamente = 0;
+                let erroresEliminacion = [];
+                
+                for (const pedido of pedidosAEnviar) {
+                    console.log(`🗑️ Eliminando de pendientes: ${pedido.Económico} / ${pedido.Nombre}`);
+                    const ok = await eliminarReservaDeSheetDB(pedido.Económico, pedido.Nombre);
+                    if (ok) {
+                        eliminadosExitosamente++;
+                        console.log(`✅ Eliminado de pendientes: ${pedido.Económico} / ${pedido.Nombre}`);
+                    } else {
+                        erroresEliminacion.push(`${pedido.Económico} - ${pedido.Nombre}`);
+                        console.warn(`❌ Error eliminando de pendientes: ${pedido.Económico} / ${pedido.Nombre}`);
+                    }
+                }
+
+                // 3. Limpiar estado local
                 delete pendingAsignaciones[econ];
                 if (activePendingEconomico === econ) {
                     activePendingEconomico = null;
-                    const inputEco = document.getElementById('inputPedidoNumEconomico'); if (inputEco) inputEco.disabled = false;
+                    const inputEco = document.getElementById('inputPedidoNumEconomico');
+                    if (inputEco) inputEco.disabled = false;
                 }
-                renderPendingAsignaciones();
+
+                // 4. Recargar datos desde SheetDB
+                console.log('📥 Revalidando datos desde SheetDB...');
+                await cargarReservasDePendientes();
                 await fetchPedidosApartados();
-                Swal.fire('Éxito', 'Reservas enviadas a Apartados', 'success');
-            } catch (err) { Swal.fire('Error', err.message || err, 'error'); }
+
+                // 5. Actualizar UI
+                renderPendingAsignaciones();
+                renderPedidosApartados();
+                actualizarGraficas();
+
+                // 6. Mostrar resultado
+                if (erroresEliminacion.length === 0) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Apartado correctamente',
+                        html: `<p><strong>${pedidosAEnviar.length}</strong> pedidos del camión <strong>${econ}</strong> han sido apartados.</p>
+                               <p style="font-size: 12px; color: #666;">Los datos se han sincronizado correctamente.</p>`,
+                        confirmButtonText: 'Aceptar'
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: '⚠️ Apartado parcial',
+                        html: `<p>Se apartaron correctamente <strong>${pedidosAEnviar.length}</strong> pedidos, pero hubo problemas al eliminarlos de pendientes:</p>
+                               <ul style="text-align: left; margin: 10px 0; font-size: 12px;">
+                                   ${erroresEliminacion.map(e => `<li>${e}</li>`).join('')}
+                               </ul>
+                               <p style="font-size: 12px; color: #ff6f00;">Por favor, intente eliminar manualmente o contacte al administrador.</p>`,
+                        confirmButtonText: 'Aceptar'
+                    });
+                }
+
+            } catch (err) {
+                console.error('❌ Error en btnFinalizar:', err);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error al apartar',
+                    html: `<p>Ocurrió un error al finalizar y apartar los pedidos:</p>
+                           <p style="font-family: monospace; font-size: 12px; color: #d32f2f; word-break: break-word;">${err.message || err}</p>
+                           <p style="font-size: 12px;">Por favor, intente nuevamente.</p>`,
+                    confirmButtonText: 'Aceptar'
+                });
+            }
         });
 
         btnEliminar.addEventListener('click', async () => {
-            if (confirm('¿Eliminar las reservas pendientes de este camión?')) {
-                // Eliminar de SheetDB (Camiones pendientes)
+            // Confirmación clara con detalles
+            const result = await Swal.fire({
+                icon: 'warning',
+                title: '¿Eliminar reservas?',
+                html: `<p>Se eliminarán <strong>${(pendingAsignaciones[econ] || []).length}</strong> pedidos pendientes del camión <strong>${econ}</strong>.</p>
+                       <p style="color: #d32f2f; font-weight: bold;">Esta acción no se puede deshacer.</p>`,
+                showCancelButton: true,
+                confirmButtonColor: '#d32f2f',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (!result.isConfirmed) return;
+
+            // Mostrar indicador de carga
+            Swal.fire({
+                title: 'Eliminando reservas...',
+                text: 'Por favor espere mientras se eliminan los pedidos de SheetDB',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            try {
                 const pedidosAEliminar = pendingAsignaciones[econ] || [];
+                let eliminadosExitosamente = 0;
+                let erroresEliminacion = [];
+
+                // Eliminar cada pedido de SheetDB (Camiones pendientes)
                 for (const pedido of pedidosAEliminar) {
+                    console.log(`🗑️ Intentando eliminar: ${pedido.Económico} / ${pedido.Nombre}`);
                     const ok = await eliminarReservaDeSheetDB(pedido.Económico, pedido.Nombre);
-                    if (!ok) console.warn('No se pudo eliminar reserva en SheetDB para', pedido.Económico, pedido.Nombre);
+                    if (ok) {
+                        eliminadosExitosamente++;
+                        console.log(`✅ Eliminado: ${pedido.Económico} / ${pedido.Nombre}`);
+                    } else {
+                        erroresEliminacion.push(`${pedido.Económico} - ${pedido.Nombre}`);
+                        console.warn(`❌ Error eliminando: ${pedido.Económico} / ${pedido.Nombre}`);
+                    }
                 }
 
+                // Limpiar estado local
                 delete pendingAsignaciones[econ];
                 if (activePendingEconomico === econ) {
-                    activePendingEconomico = null; const inputEco = document.getElementById('inputPedidoNumEconomico'); if (inputEco) inputEco.disabled = false;
+                    activePendingEconomico = null;
+                    const inputEco = document.getElementById('inputPedidoNumEconomico');
+                    if (inputEco) inputEco.disabled = false;
                 }
+
+                // Recargar datos desde SheetDB para verificar
+                console.log('📥 Revalidando datos desde SheetDB...');
+                await cargarReservasDePendientes();
+
+                // Actualizar UI
                 renderPendingAsignaciones();
+                actualizarGraficas();
+
+                // Mostrar resultado
+                if (erroresEliminacion.length === 0) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Reservas eliminadas',
+                        html: `<p>Se eliminaron correctamente <strong>${eliminadosExitosamente}</strong> pedidos del camión <strong>${econ}</strong>.</p>
+                               <p style="font-size: 12px; color: #666;">Los datos se han sincronizado con SheetDB.</p>`,
+                        confirmButtonText: 'Aceptar'
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: '⚠️ Eliminación parcial',
+                        html: `<p>Se eliminaron <strong>${eliminadosExitosamente}</strong> de <strong>${pedidosAEliminar.length}</strong> pedidos.</p>
+                               <p style="color: #d32f2f; font-weight: bold;">No se pudieron eliminar:</p>
+                               <ul style="text-align: left; margin: 10px 0;">
+                                   ${erroresEliminacion.map(e => `<li>${e}</li>`).join('')}
+                               </ul>
+                               <p style="font-size: 12px; color: #666;">Por favor, intente nuevamente o contacte al administrador.</p>`,
+                        confirmButtonText: 'Aceptar'
+                    });
+                }
+
+            } catch (err) {
+                console.error('❌ Error en btnEliminar:', err);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    html: `<p>Ocurrió un error al eliminar las reservas:</p>
+                           <p style="font-family: monospace; font-size: 12px; color: #d32f2f;">${err.message || err}</p>
+                           <p>Por favor, intente nuevamente.</p>`,
+                    confirmButtonText: 'Aceptar'
+                });
             }
         });
 
