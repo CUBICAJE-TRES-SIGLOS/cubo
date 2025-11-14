@@ -565,7 +565,7 @@
 // Función para cargar las descripciones de llantas
 async function cargarDescripcionesLlantas() { 
     try {
-        const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Apartados');
+        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados');
         if (!response.ok) {
             throw new Error('Error al cargar datos de llantas');
         }
@@ -1594,7 +1594,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('Obteniendo unidades disponibles...');
                     try {
                         // Obtener los datos de la hoja de flota
-                        const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Flota');
+                        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Flota');
                         const datosFlota = await response.json();
                         
                         console.log('Datos de flota obtenidos:', datosFlota);
@@ -1985,7 +1985,7 @@ async function buscarBloquePorFolio() {
         );
 
         // Buscar en "Escaneados especiales" (Facturas)
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Escaneados especiales');
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio.toLowerCase() ||
@@ -1994,7 +1994,7 @@ async function buscarBloquePorFolio() {
         );
 
         // Buscar en la hoja "reservados"
-        const resReservados = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=reservados');
+        const resReservados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados');
         const reservados = await resReservados.json();
         
         // Agrupar reservados por nombre
@@ -2114,7 +2114,7 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
 
         // 2. Buscar en escaneados especiales
         console.log("Buscando en escaneados especiales...");
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Escaneados especiales');
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         
         const escaneadosDelFolio = escaneados.filter(r => 
@@ -2144,7 +2144,7 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
 
         // 4. Buscar en reservados como última opción
         console.log("Buscando en reservados...");
-        const resReservados = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=reservados');
+        const resReservados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados');
         const reservados = await resReservados.json();
         const reservadosDelFolio = reservados.filter(r => 
             r.nombre?.toLowerCase() === folio
@@ -2242,7 +2242,7 @@ async function buscarYAgregarBloque() {
         }
 
         // 2. Buscar en escaneados especiales
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Escaneados especiales');
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
@@ -2263,7 +2263,7 @@ async function buscarYAgregarBloque() {
         }
 
         // 4. Buscar en reservados
-        const resReservados = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=reservados');
+        const resReservados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados');
         const reservados = await resReservados.json();
         const reservadosDelFolio = reservados.filter(r => 
             r.nombre?.toLowerCase() === folio
@@ -2346,7 +2346,7 @@ async function buscarBloqueEnModo() {
         }
 
         // 2. Buscar en escaneados especiales
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Escaneados especiales');
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
@@ -2596,7 +2596,7 @@ async function apartarUnidad(economico) {
             };
 
             // Enviar a SheetDB
-            const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -2809,7 +2809,7 @@ async function agregarBloqueEnModo(continuarAgregando = false) {
             llantasParaAgregar = llantasParaAgregar.concat(traspasosRecientes);
         }
 
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Escaneados especiales');
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
@@ -3348,7 +3348,7 @@ async function procesarBloquetraspasos(datos) {
     // ---------- Funciones para cargar datos ---------
     async function fetchInventario() {
         try {
-            const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58');
+            const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv');
             if (!res.ok) throw new Error('Error al cargar inventario');
             inventario = await res.json();
             renderInventario();
@@ -3360,7 +3360,7 @@ async function procesarBloquetraspasos(datos) {
     }
     async function fetchFlota() {
         try {
-            const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=flota');
+            const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=flota');
             if (!res.ok) throw new Error('Error al cargar flota');
             flota = await res.json();
             renderFlota();
@@ -3375,7 +3375,7 @@ async function procesarBloquetraspasos(datos) {
     async function fetchPedidosApartados() {
         try {
             // Añadir parámetro timestamp para evitar respuestas cacheadas
-            const url = `https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Apartados&t=${Date.now()}`;
+            const url = `https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados&t=${Date.now()}`;
             const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`Error al cargar pedidos Apartados: ${response.status}`);
@@ -3403,7 +3403,7 @@ async function procesarBloquetraspasos(datos) {
     }
     async function cargarReservas() {
     try {
-        const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=reservados');
+        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados');
         if (!res.ok) throw new Error('Error al cargar reservas');
         const reservas = await res.json();
         return reservas;
@@ -3714,7 +3714,7 @@ async function calcularPesosInventario() {
                     peso = Math.round(peso * 100) / 100; // Redondeo a 2 decimales
 
                     try {
-                        const res = await fetch(`https://sheetdb.io/api/v1/6vsk0ndly1a58/clave/${llanta.clave}`, {
+                        const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/clave/${llanta.clave}`, {
                             method: 'PATCH',
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({ data: { peso: peso } })
@@ -3800,7 +3800,7 @@ async function calcularPesosInventario() {
    async function eliminarLlanta(clave) {
      if (!confirm('¿Seguro que deseas eliminar esta llanta?')) return;
      try {
-       const res = await fetch(`https://sheetdb.io/api/v1/6vsk0ndly1a58/clave/${clave}`, {
+       const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/clave/${clave}`, {
          method: 'DELETE'
       });
       if (!res.ok) throw new Error('No se pudo eliminar');
@@ -3839,7 +3839,7 @@ async function guardarEdicionLlanta(clave) {
     };
 
     try {
-        const res = await fetch(`https://sheetdb.io/api/v1/6vsk0ndly1a58/clave/${clave}`, {
+        const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/clave/${clave}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: nuevosDatos })
@@ -4057,7 +4057,7 @@ async function calcularVolumenInventario() {
                 const nuevoVolumen = volumen_m3.toFixed(4);
 
                 try {
-                    const res = await fetch(`https://sheetdb.io/api/v1/6vsk0ndly1a58/clave/${llanta.clave}`, {
+                    const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/clave/${llanta.clave}`, {
                         method: 'PATCH',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ data: { volumen: nuevoVolumen } })
@@ -4198,7 +4198,7 @@ function searchInventario() {
     };
 
     try {
-        const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58', {
+        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -4290,7 +4290,7 @@ function searchInventario() {
      async function eliminarCamion(economico) {
        if (!confirm('¿Seguro que deseas eliminar este camión?')) return;
        try {
-         const res = await fetch(`https://sheetdb.io/api/v1/6vsk0ndly1a58/economico/${economico}?sheet=flota`, {
+         const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/economico/${economico}?sheet=flota`, {
            method: 'DELETE'
          });
          if (!res.ok) throw new Error('No se pudo eliminar');
@@ -4324,7 +4324,7 @@ function searchInventario() {
         volumen: document.getElementById('editCamionVolumen').value
       };
       try {
-        const res = await fetch(`https://sheetdb.io/api/v1/6vsk0ndly1a58/economico/${economico}?sheet=flota`, {
+        const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/economico/${economico}?sheet=flota`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ data: nuevosDatos })
@@ -4380,7 +4380,7 @@ function searchInventario() {
         };
 
         try {
-            const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=flota', {
+            const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=flota', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ data: nuevoDato })
@@ -4612,7 +4612,7 @@ function searchInventario() {
             
             console.log('Datos a enviar:', datosParaEnviar);
 
-            const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -4666,7 +4666,7 @@ function searchInventario() {
 
         try {
             // Enviar los datos a la hoja de cálculo de Apartados
-            const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -4729,7 +4729,7 @@ function searchInventario() {
             console.log('Datos preparados para enviar:', datosParaEnviar);
 
             // Enviar a SheetDB
-            const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -5205,7 +5205,7 @@ function searchInventario() {
             console.log('Datos a enviar:', datosParaEnviar);
 
             // Enviar los datos a la hoja de cálculo de Apartados
-            const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Apartados', {
+            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -5256,7 +5256,7 @@ function searchInventario() {
                 }
                 
                 // Eliminar de SheetDB usando el número económico como identificador
-                const response = await fetch(`https://sheetdb.io/api/v1/6vsk0ndly1a58/Económico/${numeroEconomico}?sheet=Apartados`, {
+                const response = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/Económico/${numeroEconomico}?sheet=Apartados`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json'
@@ -5283,7 +5283,7 @@ function searchInventario() {
     // Función para cargar datos desde SheetDB
     async function fetchPedidosConfirmados() {
         try {
-            const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Apartados');
+            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados');
             if (!response.ok) {
                 throw new Error(`Error al cargar pedidos confirmados: ${response.status}`);
             }
@@ -5306,7 +5306,7 @@ function searchInventario() {
 
     async function cargarDatosDesdeSheetDB() {
         try {
-            const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Apartados');
+            const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados');
             
             if (!response.ok) {
                 throw new Error(`Error al cargar datos: ${response.status}`);
@@ -5544,7 +5544,7 @@ function searchInventario() {
 
         // Estrategia A: PATCH por id (si hay id)
         if (possibleId) {
-            const url = `https://sheetdb.io/api/v1/6vsk0ndly1a58/id/${encodeURIComponent(possibleId)}`;
+            const url = `https://sheetdb.io/api/v1/mi2hxgg4vtcjv/id/${encodeURIComponent(possibleId)}`;
             const opts = {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -5566,7 +5566,7 @@ function searchInventario() {
             const normalize = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
             const econKey = Object.keys(pedidoObj).find(k => normalize(k) === 'economico') || Object.keys(pedidoObj).find(k => normalize(k).includes('econom'));
             const columnName = econKey || 'Económico'; // fallback razonable
-            const url = `https://sheetdb.io/api/v1/6vsk0ndly1a58/${encodeURIComponent(columnName)}/${encodeURIComponent(economicoVal)}?sheet=Apartados`;
+            const url = `https://sheetdb.io/api/v1/mi2hxgg4vtcjv/${encodeURIComponent(columnName)}/${encodeURIComponent(economicoVal)}?sheet=Apartados`;
             const opts = {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -5586,7 +5586,7 @@ function searchInventario() {
 
         // Estrategia C: PUT completo por id (algunas integraciones requieren PUT a /Apartados/{id} con array)
         if (!persisted && possibleId) {
-            const url = `https://sheetdb.io/api/v1/6vsk0ndly1a58/Apartados/${encodeURIComponent(possibleId)}`;
+            const url = `https://sheetdb.io/api/v1/mi2hxgg4vtcjv/Apartados/${encodeURIComponent(possibleId)}`;
             const opts = {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -6658,38 +6658,195 @@ function searchInventario() {
     }
     function autoCompletarLlantaPedidoPorCodigo() {
         const codigo = document.getElementById('pedidoCodigoLlanta').value.trim();
-        const llanta = inventario.find(item => item.clave.toString() === codigo);
-        if (llanta) {
-            document.getElementById('pedidoDescripcionLlantaInput').value = llanta.descripcion;
-            document.getElementById('pedidoLineaLlanta').innerText = llanta.linea || '';
-            document.getElementById('pedidoCantidadLlanta').value = 1;
-            document.getElementById('pedidoPesoLlanta').innerText = Number(llanta.peso).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            document.getElementById('pedidoVolumenLlanta').innerText = Number(llanta.volumen).toLocaleString('es-MX', {minimumFractionDigits: 3, maximumFractionDigits: 3});
-            document.getElementById('pedidoValorUnitarioLlanta').innerText = Number(llanta.valor).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2}); 
+        
+        // Si está vacío, limpiar datos
+        if (!codigo) {
+            document.getElementById('pedidoDescripcionLlantaInput').value = '';
+            document.getElementById('pedidoLineaLlanta').innerText = '';
+            document.getElementById('pedidoPesoLlanta').innerText = '0';
+            document.getElementById('pedidoVolumenLlanta').innerText = '0';
+            document.getElementById('pedidoValorUnitarioLlanta').innerText = '0';
+            ocultarDropdownCodigo();
+            return;
+        }
+        
+        // Buscar coincidencias parciales (case-insensitive)
+        const codigoLower = codigo.toLowerCase();
+        const coincidencias = inventario.filter(item => 
+            item.clave.toString().toLowerCase().includes(codigoLower)
+        ).slice(0, 8); // Limitar a 8 resultados
+        
+        // Si hay coincidencias, mostrar dropdown
+        if (coincidencias.length > 0) {
+            mostrarDropdownCodigo(coincidencias);
+            
+            // Si hay coincidencia exacta, auto-rellenar
+            const llantaExacta = coincidencias.find(item => 
+                item.clave.toString().toLowerCase() === codigoLower
+            );
+            if (llantaExacta) {
+                rellenarDatosLlantaPedido(llantaExacta);
+            }
         } else {
-             document.getElementById('pedidoDescripcionLlantaInput').value = '';
-             document.getElementById('pedidoLineaLlanta').innerText = '';
-             document.getElementById('pedidoPesoLlanta').innerText = '0';
-             document.getElementById('pedidoVolumenLlanta').innerText = '0';
-             document.getElementById('pedidoValorUnitarioLlanta').innerText = '0';
+            ocultarDropdownCodigo();
+            // Limpiar datos si no hay coincidencias
+            document.getElementById('pedidoDescripcionLlantaInput').value = '';
+            document.getElementById('pedidoLineaLlanta').innerText = '';
+            document.getElementById('pedidoPesoLlanta').innerText = '0';
+            document.getElementById('pedidoVolumenLlanta').innerText = '0';
+            document.getElementById('pedidoValorUnitarioLlanta').innerText = '0';
         }
     }
+
     function autoCompletarLlantaPedidoPorDescripcion() {
-        const descripcion = document.getElementById('pedidoDescripcionLlantaInput').value.trim().toLowerCase();
-        const llanta = inventario.find(item => item.descripcion.toLowerCase() === descripcion);
-        if (llanta) {
-            document.getElementById('pedidoCodigoLlanta').value = llanta.clave;
-            document.getElementById('pedidoLineaLlanta').innerText = llanta.linea || '';
-            document.getElementById('pedidoCantidadLlanta').value = 1;
-            document.getElementById('pedidoPesoLlanta').innerText = Number(llanta.peso).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            document.getElementById('pedidoVolumenLlanta').innerText = Number(llanta.volumen).toLocaleString('es-MX', {minimumFractionDigits: 3, maximumFractionDigits: 3});
-            document.getElementById('pedidoValorUnitarioLlanta').innerText = Number(llanta.valor).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2}); 
+        const descripcion = document.getElementById('pedidoDescripcionLlantaInput').value.trim();
+        
+        // Si está vacío, limpiar datos
+        if (!descripcion) {
+            document.getElementById('pedidoCodigoLlanta').value = '';
+            document.getElementById('pedidoLineaLlanta').innerText = '';
+            document.getElementById('pedidoPesoLlanta').innerText = '0';
+            document.getElementById('pedidoVolumenLlanta').innerText = '0';
+            document.getElementById('pedidoValorUnitarioLlanta').innerText = '0';
+            ocultarDropdownDescripcion();
+            return;
+        }
+        
+        // Buscar coincidencias parciales (case-insensitive)
+        const descripcionLower = descripcion.toLowerCase();
+        const coincidencias = inventario.filter(item => 
+            (item.descripcion || '').toLowerCase().includes(descripcionLower)
+        ).slice(0, 8); // Limitar a 8 resultados
+        
+        // Si hay coincidencias, mostrar dropdown
+        if (coincidencias.length > 0) {
+            mostrarDropdownDescripcion(coincidencias);
+            
+            // Si hay coincidencia exacta, auto-rellenar
+            const llantaExacta = coincidencias.find(item => 
+                (item.descripcion || '').toLowerCase() === descripcionLower
+            );
+            if (llantaExacta) {
+                rellenarDatosLlantaPedido(llantaExacta);
+            }
         } else {
-             document.getElementById('pedidoDescripcionLlantaInput').value = '';
-             document.getElementById('pedidoLineaLlanta').innerText = '';
-             document.getElementById('pedidoPesoLlanta').innerText = '0';
-             document.getElementById('pedidoVolumenLlanta').innerText = '0';
-             document.getElementById('pedidoValorUnitarioLlanta').innerText = '0';
+            ocultarDropdownDescripcion();
+            // Limpiar datos si no hay coincidencias
+            document.getElementById('pedidoCodigoLlanta').value = '';
+            document.getElementById('pedidoLineaLlanta').innerText = '';
+            document.getElementById('pedidoPesoLlanta').innerText = '0';
+            document.getElementById('pedidoVolumenLlanta').innerText = '0';
+            document.getElementById('pedidoValorUnitarioLlanta').innerText = '0';
+        }
+    }
+
+    // Función auxiliar para rellenar datos de llanta en el formulario pedido
+    function rellenarDatosLlantaPedido(llanta) {
+        document.getElementById('pedidoCodigoLlanta').value = llanta.clave;
+        document.getElementById('pedidoDescripcionLlantaInput').value = llanta.descripcion || '';
+        document.getElementById('pedidoLineaLlanta').innerText = llanta.linea || '';
+        document.getElementById('pedidoCantidadLlanta').value = 1;
+        document.getElementById('pedidoPesoLlanta').innerText = Number(llanta.peso || 0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById('pedidoVolumenLlanta').innerText = Number(llanta.volumen || 0).toLocaleString('es-MX', {minimumFractionDigits: 4, maximumFractionDigits: 4});
+        document.getElementById('pedidoValorUnitarioLlanta').innerText = Number(llanta.valor || 0).toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        ocultarDropdownCodigo();
+        ocultarDropdownDescripcion();
+    }
+
+    // Funciones para mostrar/ocultar dropdowns
+    function mostrarDropdownCodigo(coincidencias) {
+        let dropdownDiv = document.getElementById('dropdownAutocompleteCodigo');
+        if (!dropdownDiv) {
+            dropdownDiv = document.createElement('div');
+            dropdownDiv.id = 'dropdownAutocompleteCodigo';
+            dropdownDiv.style.cssText = `
+                position: absolute;
+                background: white;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                max-height: 200px;
+                overflow-y: auto;
+                z-index: 1000;
+                min-width: 250px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            `;
+            const inputCodigo = document.getElementById('pedidoCodigoLlanta');
+            inputCodigo.parentElement.style.position = 'relative';
+            inputCodigo.parentElement.appendChild(dropdownDiv);
+        }
+
+        dropdownDiv.innerHTML = coincidencias.map(item => `
+            <div onclick="seleccionarLlantaPorCodigo('${item.clave}')" style="
+                padding: 8px 12px;
+                cursor: pointer;
+                border-bottom: 1px solid #eee;
+                font-size: 12px;
+            " onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'">
+                <strong>${item.clave}</strong> — ${item.descripcion}
+            </div>
+        `).join('');
+        
+        dropdownDiv.style.display = 'block';
+    }
+
+    function mostrarDropdownDescripcion(coincidencias) {
+        let dropdownDiv = document.getElementById('dropdownAutocompleteDescripcion');
+        if (!dropdownDiv) {
+            dropdownDiv = document.createElement('div');
+            dropdownDiv.id = 'dropdownAutocompleteDescripcion';
+            dropdownDiv.style.cssText = `
+                position: absolute;
+                background: white;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                max-height: 200px;
+                overflow-y: auto;
+                z-index: 1000;
+                min-width: 300px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            `;
+            const inputDesc = document.getElementById('pedidoDescripcionLlantaInput');
+            inputDesc.parentElement.style.position = 'relative';
+            inputDesc.parentElement.appendChild(dropdownDiv);
+        }
+
+        dropdownDiv.innerHTML = coincidencias.map(item => `
+            <div onclick="seleccionarLlantaPorDescripcion('${item.descripcion}')" style="
+                padding: 8px 12px;
+                cursor: pointer;
+                border-bottom: 1px solid #eee;
+                font-size: 12px;
+            " onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'">
+                <strong>${item.clave}</strong> — ${item.descripcion}
+            </div>
+        `).join('');
+        
+        dropdownDiv.style.display = 'block';
+    }
+
+    function ocultarDropdownCodigo() {
+        const dropdown = document.getElementById('dropdownAutocompleteCodigo');
+        if (dropdown) dropdown.style.display = 'none';
+    }
+
+    function ocultarDropdownDescripcion() {
+        const dropdown = document.getElementById('dropdownAutocompleteDescripcion');
+        if (dropdown) dropdown.style.display = 'none';
+    }
+
+    function seleccionarLlantaPorCodigo(clave) {
+        const llanta = inventario.find(item => item.clave.toString() === clave.toString());
+        if (llanta) {
+            rellenarDatosLlantaPedido(llanta);
+            document.getElementById('pedidoCodigoLlanta').value = llanta.clave;
+        }
+    }
+
+    function seleccionarLlantaPorDescripcion(descripcion) {
+        const llanta = inventario.find(item => item.descripcion === descripcion);
+        if (llanta) {
+            rellenarDatosLlantaPedido(llanta);
+            document.getElementById('pedidoDescripcionLlantaInput').value = descripcion;
         }
     }
     function calcularTotalesPedido() {
@@ -6853,7 +7010,7 @@ async function reservarPedidoActual(idx) {
         };
     
         // Guardar en la hoja de reservados
-        const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=reservados', {
+        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: registroReserva })
@@ -7784,7 +7941,7 @@ async function guardarBloqueEspecial() {
         }));
 
         // Guardar en SheetDB
-        const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Escaneados especiales', {
+        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: datosBloque })
@@ -8093,7 +8250,7 @@ async function agregarProductosNuevosAlInventario(productos) {
             });
         }
 
-        const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58', {
+        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: datosParaGuardar })
@@ -8155,7 +8312,7 @@ async function cargarEscaneosGuardados(filtro = '', silencioso = false) {
             console.log('Iniciando carga de escaneos guardados...');
         }
         
-        const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Escaneados especiales');
+        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
         if (!response.ok) throw new Error('Error al cargar escaneos');
         
         const datos = await response.json();
@@ -8261,7 +8418,7 @@ function renderTable() {
 function mostrarBloquesGuardadosEspeciales() {
     const container = document.getElementById('bloquesGuardadosEspeciales');
     
-    fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Escaneados especiales')
+    fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales')
         .then(response => response.json())
         .then(datos => {
             // Agrupar por nombre de bloque
@@ -8321,7 +8478,7 @@ async function eliminarBloqueEspecial(nombre) {
     if (!confirm(`¿Está seguro de eliminar el bloque "${nombre}"?`)) return;
 
     try {
-        const response = await fetch(`https://sheetdb.io/api/v1/6vsk0ndly1a58/Nombre/${encodeURIComponent(nombre)}?sheet=Escaneados especiales`, {
+        const response = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/Nombre/${encodeURIComponent(nombre)}?sheet=Escaneados especiales`, {
             method: 'DELETE'
         });
 
@@ -8437,7 +8594,7 @@ async function confirmarGuardadoEscaneo() {
             Descripción: item.Descripcion || ''  // Notar la tilde en 'Descripción'
         }));
 
-        const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Escaneados especiales', {
+        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: datosParaGuardar })
@@ -8859,7 +9016,7 @@ async function guardarReservaEnSheetDB(pedidoObj) {
             "Volumen": pedidoObj.Volumen || "",
             "Peso": pedidoObj.Peso || ""
         };
-        const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Camiones pendientes', {
+        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Camiones pendientes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: [dataToSave] })
@@ -8873,7 +9030,7 @@ async function guardarReservaEnSheetDB(pedidoObj) {
 // Función para cargar reservas desde SheetDB al inicializar
 async function cargarReservasDePendientes() {
     try {
-        const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Camiones pendientes');
+        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Camiones pendientes');
         if (!res.ok) return;
         const datos = await res.json();
         pendingAsignaciones = {};
@@ -8901,7 +9058,7 @@ async function cargarReservasDePendientes() {
 // Función para eliminar una reserva de SheetDB por ID o campos únicos
 async function eliminarReservaDeSheetDB(economico, nombre) {
     try {
-        const base = 'https://sheetdb.io/api/v1/6vsk0ndly1a58';
+        const base = 'https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Camiones pendientes';
         let eliminado = false;
 
         console.log('🔍 Iniciando eliminación para - Económico:', economico, 'Nombre:', nombre);
@@ -9141,7 +9298,7 @@ async function aceptarPedido() {
         loteEnviar.push(pedidoObj);
 
         // Enviar lote a SheetDB (cada objeto será creada como fila separada)
-        const response = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Apartados', {
+        const response = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: loteEnviar })
@@ -9251,7 +9408,7 @@ function renderPendingAsignaciones() {
         btnFinalizar.addEventListener('click', async () => {
             try {
                 const pedidosAEnviar = pendingAsignaciones[econ] || [];
-                const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Apartados', {
+                const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Apartados', {
                     method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ data: pedidosAEnviar })
                 });
                 if (!res.ok) throw new Error('Error al enviar reservas');
@@ -9504,7 +9661,7 @@ function renderPedidosApartados() {
             'Valor Total ($)': (Number(pedido.valor) / llantas.length).toFixed(2)
         }));
 
-        const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=reservados', {
+        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=reservados', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: registrosReserva })
@@ -9512,7 +9669,7 @@ function renderPedidosApartados() {
 
         if (!res.ok) throw new Error('Error al guardar reserva');
 
-        await fetch(`https://sheetdb.io/api/v1/6vsk0ndly1a58/camion/${pedido.camion}?sheet=Apartados`, {
+        await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/camion/${pedido.camion}?sheet=Apartados`, {
             method: 'DELETE'
         });
 
@@ -9730,7 +9887,7 @@ async function agregarNuevosProductosAlInventario(productos) {
         }
 
         // Obtener inventario actual
-        const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58');
+        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv');
         if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
         const inventarioActual = await res.json();
 
@@ -9800,7 +9957,7 @@ async function agregarNuevosProductosAlInventario(productos) {
 
             if (productosValidos.length > 0) {
                 try {
-                    const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58', {
+                    const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ data: productosValidos })
@@ -10098,7 +10255,7 @@ document.getElementById('btnTerminarBloqueFactura').onclick = async () => {
 // Guardar en SheetDB (más rápido: POST en lote)
 async function guardartraspasosEnSheetDB(traspasos) {
     try {
-        await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=traspasos', {
+        await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=traspasos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: traspasos }) // Enviar array
@@ -10250,7 +10407,7 @@ async function actualizarBloquestraspasos() {
     try {
         console.log('Iniciando actualización de bloques de traspasos...');
         
-        const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=traspasos');
+        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=traspasos');
         if (!res.ok) throw new Error(`No se pudo cargar traspasos. Status: ${res.status}`);
         
         const traspasos = await res.json();
@@ -11376,12 +11533,12 @@ async function eliminarBloqueFactura(idx) {
     // 1. Obtén todas las filas con ese nombre
     let errores = 0;
     try {
-        const res = await fetch(`https://sheetdb.io/api/v1/6vsk0ndly1a58/Nombre/${encodeURIComponent(nombreBloque)}?sheet=traspasos`);
+        const res = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/Nombre/${encodeURIComponent(nombreBloque)}?sheet=traspasos`);
         const traspasos = await res.json();
         // 2. Elimina cada una por su row_id
         for (const factura of traspasos) {    
             if (factura.row_id) {
-                const delRes = await fetch(`https://sheetdb.io/api/v1/6vsk0ndly1a58/row_id/${factura.row_id}?sheet=traspasos`, {
+                const delRes = await fetch(`https://sheetdb.io/api/v1/mi2hxgg4vtcjv/row_id/${factura.row_id}?sheet=traspasos`, {
                     method: 'DELETE'
                 });
                 if (!delRes.ok) errores++;
@@ -11407,7 +11564,7 @@ document.getElementById('traspasosearchFolio').addEventListener('input', functio
 // Al cargar la pestaña, carga los bloques desde SheetDB
 document.querySelector('button[data-tab="traspasos"]').addEventListener('click', async () => {
     try {
-        const res = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=traspasos');
+        const res = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=traspasos');
         if (!res.ok) throw new Error('No se pudo cargar traspasos');
         const traspasos = await res.json();
         bloquestraspasos = [];
@@ -11515,7 +11672,7 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
         }
 
     // Usar URL completa para evitar 'Failed to fetch' cuando se ejecuta desde file:// o distinto origen
-    const resEscaneados = await fetch('https://sheetdb.io/api/v1/6vsk0ndly1a58?sheet=Escaneados especiales');
+    const resEscaneados = await fetch('https://sheetdb.io/api/v1/mi2hxgg4vtcjv?sheet=Escaneados especiales');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
