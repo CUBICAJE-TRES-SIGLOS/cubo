@@ -2675,31 +2675,76 @@ async function buscarBloqueEnModo() {
         let encontrado = false;
 
         // 1. Buscar en traspasos recién escaneadas
-        const traspasosRecientes = traspasosParaGuardar.filter(f => 
-            normalizeKey(f.Nombre || f.nombre) === folio ||
-            normalizeKey(f.Folio || f.folio) === folio
-        );
+        const traspasosRecientes = traspasosParaGuardar.filter(f => {
+            const nombre = normalizeKey(f.Nombre || f.nombre || '');
+            const fol = normalizeKey(f.Folio || f.folio || '');
+            return nombre === folio || fol === folio || nombre.includes(folio) || fol.includes(folio);
+        });
         if (traspasosRecientes.length > 0) {
             mostrarResultadoBloqueModo(divResultado, folio, 'traspasos recientes', traspasosRecientes);
             encontrado = true;
         }
 
         // 2. Buscar en escaneados especiales
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/sba4g00do8odk?sheet=Escaneados especiales');
-        const escaneados = await resEscaneados.json();
-        const escaneadosDelFolio = escaneados.filter(r => 
-            r.Nombre?.toLowerCase() === folio ||
-            r.nombre?.toLowerCase() === folio
-        );
-        if (escaneadosDelFolio.length > 0) {
-            mostrarResultadoBloqueModo(divResultado, folio, 'escaneados especiales', escaneadosDelFolio);
-            encontrado = true;
+        try {
+            const resEscaneados = await fetch('https://sheetdb.io/api/v1/sba4g00do8odk?sheet=Escaneados especiales');
+            if (resEscaneados.ok) {
+                const escaneados = await resEscaneados.json();
+                const escaneadosDelFolio = escaneados.filter(r => {
+                    const nombre = normalizeKey(r.Nombre || r.nombre || '');
+                    const fol = normalizeKey(r.Folio || r.folio || '');
+                    return nombre === folio || fol === folio || nombre.includes(folio) || fol.includes(folio);
+                });
+                if (escaneadosDelFolio.length > 0) {
+                    mostrarResultadoBloqueModo(divResultado, folio, 'escaneados especiales', escaneadosDelFolio);
+                    encontrado = true;
+                }
+            }
+        } catch (e) {
+            console.warn('Error buscando en Escaneados especiales:', e);
         }
 
-        // 3. Buscar en bloques de traspasos
-        const bloquesFactura = bloquestraspasos.filter(b => 
-            b.nombre.toLowerCase() === folio
-        );
+        // 3. Buscar en traspasos (sheet) - MÁS EQUIPADO
+        try {
+            const restraspasos = await fetch('https://sheetdb.io/api/v1/sba4g00do8odk?sheet=traspasos');
+            let traspasosDelFolio = [];
+            if (restraspasos.ok) {
+                const traspasos = await restraspasos.json();
+                traspasosDelFolio = traspasos.filter(r => {
+                    const nombre = normalizeKey(r.Nombre || r.nombre || '');
+                    const fol = normalizeKey(r.Folio || r.folio || '');
+                    return nombre === folio || fol === folio || nombre.includes(folio) || fol.includes(folio);
+                });
+            } else {
+                // Intentar con nombre alternativo
+                try {
+                    const restraspasosAlt = await fetch('https://sheetdb.io/api/v1/sba4g00do8odk?sheet=factura');
+                    if (restraspasosAlt.ok) {
+                        const traspasosAlt = await restraspasosAlt.json();
+                        traspasosDelFolio = traspasosAlt.filter(r => {
+                            const nombre = normalizeKey(r.Nombre || r.nombre || '');
+                            const fol = normalizeKey(r.Folio || r.folio || '');
+                            return nombre === folio || fol === folio || nombre.includes(folio) || fol.includes(folio);
+                        });
+                    }
+                } catch (eAlt) {
+                    console.warn('Error intentando hoja alternativa "factura":', eAlt);
+                }
+            }
+            
+            if (traspasosDelFolio.length > 0) {
+                mostrarResultadoBloqueModo(divResultado, folio, 'traspasos', traspasosDelFolio);
+                encontrado = true;
+            }
+        } catch (e) {
+            console.warn('Error buscando en traspasos (sheet):', e);
+        }
+
+        // 4. Buscar en bloques de traspasos
+        const bloquesFactura = bloquestraspasos.filter(b => {
+            const nombreBloque = normalizeKey(b.nombre || '');
+            return nombreBloque === folio || nombreBloque.includes(folio);
+        });
         if (bloquesFactura.length > 0) {
             mostrarResultadoBloqueModo(divResultado, folio, 'bloques de traspasos', bloquesFactura);
             encontrado = true;
