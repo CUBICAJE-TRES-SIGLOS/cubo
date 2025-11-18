@@ -662,25 +662,11 @@ document.addEventListener('DOMContentLoaded', function() {
     <button class="tablink active" data-tab="inventario">Inventario</button>
     <button class="tablink" data-tab="flota">Flota</button>
     <button class="tablink" data-tab="traspasos" onclick="actualizarBloquestraspasos()">Escaneo de traspasos o traspasos</button> 
-    <button class="tablink" data-tab="factura" onclick="cargarFacturasEscaneadas()">Facturas</button>
     <button class="tablink" data-tab="pedidos">Pedidos</button>
     <button class="tablink" data-tab="sugerencia-unidad">Sugerencia de Unidad</button>
-    <button class="tablink" data-tab="pedidos-Apa rtados">Pedidos Apartados</button>
-    </nav>
-    <!-- Pestaña nueva: Facturas (muestra "Escaneados especiales") -->
-    <div class="tabcontent" id="factura">
-        <div class="container py-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h3>Facturas / Escaneados especiales</h3>
-                <div>
-                    <button class="btn btn-primary" onclick="cargarFacturasEscaneadas()">Recargar</button>
-                </div>
-            </div>
-            <div id="facturaListContainer">Cargando datos...</div>
-        </div>
-    </div>
-<!-- Pedidos Apartados -->
- 
+    <button class="tablink" data-tab="pedidos-Apartados">Pedidos Apartados</button>
+</nav>
+
 <!-- Pedidos Apartados -->
 <div id="pedidos-Apartados" class="tabcontent">
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -1795,7 +1781,7 @@ document.addEventListener('DOMContentLoaded', function() {
                    </li>
                    <li class="nav-item" role="presentation">
                        <button class="nav-link" id="traspasos-especiales-tab" data-bs-toggle="tab" data-bs-target="#traspasosEspeciales" type="button" role="tab">
-                           Facturas
+                           traspasos
                        </button>
                    </li>
                </ul>
@@ -1889,9 +1875,6 @@ function iniciarActualizacionesAutomaticas() {
                     break;
                 case 'traspasos':
                     await actualizarBloquestraspasos();
-                    break;
-                case 'factura':
-                    await cargarFacturasEscaneadas();
                     break;
             }
         } catch (error) {
@@ -11563,76 +11546,6 @@ async function actualizarBloquestraspasos() {
         return false;
     }
 }
-// Funciones para cargar y mostrar facturas / "Escaneados especiales"
-async function cargarFacturasEscaneadas() {
-    const container = document.getElementById('facturaListContainer');
-    if (!container) return;
-    container.innerHTML = 'Cargando...';
-    try {
-        const res = await fetch('https://sheetdb.io/api/v1/sba4g00do8odk?sheet=Escaneados especiales');
-        if (!res.ok) throw new Error('Error cargando Escaneados especiales: ' + res.status);
-        const data = await res.json();
-        mostrarFacturasEscaneadas(data);
-    } catch (e) {
-        console.error('Error cargando facturas escaneadas:', e);
-        container.innerHTML = `<div class="alert alert-danger">No se pudieron cargar los escaneados especiales: ${e.message}</div>`;
-    }
-}
-
-function mostrarFacturasEscaneadas(facturas) {
-    const container = document.getElementById('facturaListContainer');
-    if (!container) return;
-    if (!Array.isArray(facturas) || facturas.length === 0) {
-        container.innerHTML = '<div class="alert alert-info">No hay escaneados especiales.</div>';
-        return;
-    }
-
-    // Agrupar por Folio/Nombre para mostrar en bloques
-    const grupos = {};
-    facturas.forEach(f => {
-        const key = (f.Folio || f.Nombre || f.folio || f.nombre || 'Sin folio').toString();
-        if (!grupos[key]) grupos[key] = [];
-        grupos[key].push(f);
-    });
-
-    let html = '';
-    Object.keys(grupos).forEach((k, idx) => {
-        const items = grupos[k];
-        html += `
-            <div class="card mb-2">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <strong>${k}</strong>
-                    <span class="badge bg-secondary">${items.length} productos</span>
-                </div>
-                <div class="card-body">
-                    <table class="table table-sm table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Código</th>
-                                <th>Descripción</th>
-                                <th>Línea</th>
-                                <th>Cantidad</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${items.map(it => `
-                                <tr>
-                                    <td>${it.Código || it.codigo || ''}</td>
-                                    <td>${it.Descripción || it.descripcion || ''}</td>
-                                    <td>${it.Línea || it.linea || ''}</td>
-                                    <td>${it.Cantidad || it.cantidad || ''}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-}
-
 // Modificar la función toggleDetalleBloque()
 function toggleDetalleBloque(idx) {
     const detalle = document.getElementById(`detalleBloque${idx}`);
