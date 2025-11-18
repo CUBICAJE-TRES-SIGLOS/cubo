@@ -3259,17 +3259,23 @@ async function agregarBloqueEnModo(continuarAgregando = false) {
 }
 
 function limpiarBusquedaBloqueEnModo() {
-    // Limpiar solo los campos de búsqueda de llanta, no la estructura
-    const inputCodigo = document.getElementById('inputBuscarLlantaCodigo');
-    const inputDescripcion = document.getElementById('inputBuscarLlantaDescripcion');
-    const inputCantidad = document.getElementById('inputBuscarLlantaCantidad');
-    if (inputCodigo) inputCodigo.value = '';
-    if (inputDescripcion) inputDescripcion.value = '';
-    if (inputCantidad) inputCantidad.value = '1';
-    const resultado = document.getElementById('resultadoBusquedaLlanta');
-    if (resultado) resultado.innerHTML = '';
-    // No eliminar la estructura de la barra de búsqueda
-}
+    // Limpiar solo los campos de búsqueda de llanta, sin eliminar la estructura ni otros elementos
+        setTimeout(() => {
+            const inputCodigo = document.getElementById('inputBuscarLlantaCodigo');
+            const inputDescripcion = document.getElementById('inputBuscarLlantaDescripcion');
+            const inputCantidad = document.getElementById('inputBuscarLlantaCantidad');
+            if (inputCodigo) inputCodigo.value = '';
+            if (inputDescripcion) inputDescripcion.value = '';
+            if (inputCantidad) inputCantidad.value = '1';
+            const resultado = document.getElementById('resultadoBusquedaLlanta');
+            if (resultado) resultado.innerHTML = '';
+            // Limpiar autocompletados si están visibles
+            const autoCodigo = document.getElementById('autocompleteCodigoResultados');
+            const autoDesc = document.getElementById('autocompleteDescripcionResultados');
+            if (autoCodigo) { autoCodigo.innerHTML = ''; autoCodigo.style.display = 'none'; }
+            if (autoDesc) { autoDesc.innerHTML = ''; autoDesc.style.display = 'none'; }
+        }, 50);
+    }
 
 // --- Búsqueda rápida de llanta en la pestaña de búsqueda de bloque ---
 // Inserta una barra (código/descr + cantidad) y permite agregar la llanta encontrada al bloque
@@ -12733,64 +12739,78 @@ document.querySelector('button[data-tab="traspasos"]').addEventListener('click',
 
 // Función para limpiar la búsqueda y las llantas acumuladas
 function limpiarBusquedaBloqueEnModo() {
-    // Limpiar campos de entrada y mensajes
-    const input = document.getElementById('inputBusquedaBloqueNuevo');
-    if (input) input.value = '';
-
-    const resultado = document.getElementById('resultadoBusquedaBloqueNuevo');
-    if (resultado) resultado.innerHTML = '';
-
-    // Limpiar lista acumulada en memoria y refrescar la tabla del bloque
-    try {
-        llantasAcumuladasEnBloque = [];
-    } catch (e) {
-        console.warn('llantasAcumuladasEnBloque no definida:', e);
-    }
-    actualizarTablaLlantasBloque([]);
-
-    // Limpiar otros contenedores/tables relacionados con la pestaña (solo datos)
-    const contPendientes = document.getElementById('bloquesPendientesNuevo');
-    if (contPendientes) contPendientes.innerHTML = '';
-    const contPendientesModo = document.getElementById('bloquesPendientesNuevoModo');
-    if (contPendientesModo) contPendientesModo.innerHTML = '';
-
-    const tablaSeleccionadas = document.getElementById('tablaLlantasSeleccionadas');
-    if (tablaSeleccionadas) {
-        const tb = tablaSeleccionadas.getElementsByTagName('tbody')[0];
-        if (tb) tb.innerHTML = '';
-    }
-
-    const tablaSugerencias = document.getElementById('tablaUnidadesSugeridasBusqueda');
-    if (tablaSugerencias) {
-        const tbody = tablaSugerencias.tagName === 'TABLE' ? tablaSugerencias.getElementsByTagName('tbody')[0] : tablaSugerencias;
-        if (tbody) tbody.innerHTML = '';
-        else tablaSugerencias.innerHTML = '';
-    }
-
-    const resultadosBusqueda = document.getElementById('resultadosBusqueda');
-    if (resultadosBusqueda) resultadosBusqueda.innerHTML = '';
-
-    const contadorTotal = document.getElementById('contadorTotalLlantasBloque');
-    if (contadorTotal) contadorTotal.textContent = '0';
-
-    // Limpiar tablas adicionales que pueden existir en la pestaña (mismo comportamiento que la otra definición)
-    const tablasExtra = [
-        'tablaDistribucionSugerida',
-        'tablaPedidosApartados',
-        'tablaPedidosConfirmados',
-        'tablaUnidadesSugeridas'
-    ];
-    tablasExtra.forEach(id => {
-        try {
-            const el = document.getElementById(id);
-            if (!el) return;
-            const tb = el.tagName === 'TABLE' ? el.getElementsByTagName('tbody')[0] : el.querySelector('tbody');
+    // Limpiar solo los campos de búsqueda de llanta, sin eliminar la estructura ni otros elementos
+    setTimeout(() => {
+        // Limpiar solo valores y resultados, nunca eliminar la estructura de las barras buscadoras
+        const inputCodigo = document.getElementById('inputBuscarLlantaCodigo');
+        const inputDescripcion = document.getElementById('inputBuscarLlantaDescripcion');
+        const inputCantidad = document.getElementById('inputBuscarLlantaCantidad');
+        if (inputCodigo) inputCodigo.value = '';
+        if (inputDescripcion) inputDescripcion.value = '';
+        if (inputCantidad) inputCantidad.value = '1';
+        // Limpiar autocompletados
+        const autoCodigo = document.getElementById('autocompleteCodigoResultados');
+        const autoDesc = document.getElementById('autocompleteDescripcionResultados');
+        if (autoCodigo) { autoCodigo.innerHTML = ''; autoCodigo.style.display = 'none'; }
+        if (autoDesc) { autoDesc.innerHTML = ''; autoDesc.style.display = 'none'; }
+        // Limpiar resultado de búsqueda de llanta
+        const resultado = document.getElementById('resultadoBusquedaLlanta');
+        if (resultado) resultado.innerHTML = '';
+        // Limpiar tabla de llantas seleccionadas
+        const tablaLlantas = document.getElementById('tablaLlantasSeleccionadas');
+        if (tablaLlantas) {
+            const tb = tablaLlantas.getElementsByTagName('tbody')[0];
             if (tb) tb.innerHTML = '';
-            else el.innerHTML = '';
-        } catch (e) {
-            console.warn('Error limpiando tabla extra', id, e);
         }
-    });
+        // Limpiar sugerencias de unidades
+        const tablaSugerencias = document.getElementById('tablaUnidadesSugeridasBusqueda');
+        if (tablaSugerencias) {
+            const tbody = tablaSugerencias.tagName === 'TABLE' ? tablaSugerencias.getElementsByTagName('tbody')[0] : tablaSugerencias;
+            if (tbody) tbody.innerHTML = '';
+            else tablaSugerencias.innerHTML = '';
+        }
+        // Limpiar totales
+        const totalLlantas = document.getElementById('totalLlantas');
+        if (totalLlantas) {
+            totalLlantas.style.display = 'none';
+            totalLlantas.innerHTML = '';
+        }
+        // Limpiar resultados de búsqueda de bloques
+        const resultadosBusqueda = document.getElementById('resultadosBusqueda');
+        if (resultadosBusqueda) resultadosBusqueda.innerHTML = '';
+        // Limpiar contadores
+        const contadorTotal = document.getElementById('contadorTotalLlantasBloque');
+        if (contadorTotal) contadorTotal.textContent = '0';
+        // Limpiar bloques pendientes
+        const contPendientes = document.getElementById('bloquesPendientesNuevo');
+        if (contPendientes) contPendientes.innerHTML = '';
+        const contPendientesModo = document.getElementById('bloquesPendientesNuevoModo');
+        if (contPendientesModo) contPendientesModo.innerHTML = '';
+        // Limpiar variables globales de acumulados
+        try { llantasAcumuladasEnBloque = []; } catch (e) {}
+        if (typeof actualizarTablaLlantasBloque === 'function') actualizarTablaLlantasBloque([]);
+        // Limpiar tablas adicionales
+        const tablasExtra = [
+            'tablaDistribucionSugerida',
+            'tablaPedidosApartados',
+            'tablaPedidosConfirmados',
+            'tablaUnidadesSugeridas'
+        ];
+        tablasExtra.forEach(id => {
+            try {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const tb = el.tagName === 'TABLE' ? el.getElementsByTagName('tbody')[0] : el.querySelector('tbody');
+                if (tb) tb.innerHTML = '';
+                else el.innerHTML = '';
+            } catch (e) {}
+        });
+        // Nunca eliminar ni modificar la estructura de las barras buscadoras de llantas
+        // Si por error se eliminaron, volver a crear la barra buscadora
+        if (!document.getElementById('busquedaLlantaRapid')) {
+            if (typeof setupBusquedaLlantaEnPedidos === 'function') setupBusquedaLlantaEnPedidos();
+        }
+    }, 50);
 }
 
 // Función modificada para agregar bloques
