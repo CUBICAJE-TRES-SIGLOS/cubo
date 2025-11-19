@@ -2000,7 +2000,9 @@ async function autocompletarBuscaBloques(inputId, dropdownId) {
     }
 
     try {
-        const coincidencias = new Set();
+        // Usar la raíz de SheetDB y añadir ?sheet= en cada fetch
+        const coincidencias = [];
+        const seen = new Set();
         const base = 'https://sheetdb.io/api/v1/utz051ngs76ar';
 
         // 1. Buscar en escaneos locales (archivosEscaneados)
@@ -2009,16 +2011,20 @@ async function autocompletarBuscaBloques(inputId, dropdownId) {
                 if (archivo.productos && Array.isArray(archivo.productos)) {
                     archivo.productos.forEach(prod => {
                         const nombre = normalizeKey(prod.Nombre || prod.nombre || '');
-                        const folio = normalizeKey(prod.Folio || prod.folio || '');
-                        if (nombre.includes(search) || folio.includes(search)) {
-                            coincidencias.add(prod.Nombre || prod.Folio || prod.nombre || prod.folio || 'Sin nombre');
+                        const folio = (prod.Folio || prod.folio || '').toString();
+                        if (nombre.includes(search) || normalizeKey(folio).includes(search)) {
+                            const display = prod.Nombre || prod.Folio || prod.nombre || prod.folio || 'Sin nombre';
+                            if (!seen.has(display)) {
+                                seen.add(display);
+                                coincidencias.push({ display, folio });
+                            }
                         }
                     });
                 }
             });
         }
 
-        // 2. Buscar en "traspasos" 
+        // 2. Buscar en "traspasos"
         try {
             const resTrasp = await fetch(base + '?sheet=traspasos');
             if (resTrasp.ok) {
@@ -2026,9 +2032,13 @@ async function autocompletarBuscaBloques(inputId, dropdownId) {
                 if (Array.isArray(traspasos)) {
                     traspasos.forEach(t => {
                         const nombre = normalizeKey(t.Nombre || t.nombre || '');
-                        const folio = normalizeKey(t.Folio || t.folio || '');
-                        if (nombre.includes(search) || folio.includes(search)) {
-                            coincidencias.add(t.Nombre || t.Folio || t.nombre || t.folio || 'Sin nombre');
+                        const folio = (t.Folio || t.folio || '').toString();
+                        if (nombre.includes(search) || normalizeKey(folio).includes(search)) {
+                            const display = t.Nombre || t.Folio || t.nombre || t.folio || 'Sin nombre';
+                            if (!seen.has(display)) {
+                                seen.add(display);
+                                coincidencias.push({ display, folio });
+                            }
                         }
                     });
                 }
@@ -2045,9 +2055,13 @@ async function autocompletarBuscaBloques(inputId, dropdownId) {
                 if (Array.isArray(escaneados)) {
                     escaneados.forEach(e => {
                         const nombre = normalizeKey(e.Nombre || e.nombre || '');
-                        const folio = normalizeKey(e.Folio || e.folio || '');
-                        if (nombre.includes(search) || folio.includes(search)) {
-                            coincidencias.add(e.Nombre || e.Folio || e.nombre || e.folio || 'Sin nombre');
+                        const folio = (e.Folio || e.folio || '').toString();
+                        if (nombre.includes(search) || normalizeKey(folio).includes(search)) {
+                            const display = e.Nombre || e.Folio || e.nombre || e.folio || 'Sin nombre';
+                            if (!seen.has(display)) {
+                                seen.add(display);
+                                coincidencias.push({ display, folio });
+                            }
                         }
                     });
                 }
@@ -2056,8 +2070,8 @@ async function autocompletarBuscaBloques(inputId, dropdownId) {
             console.warn('Error buscando en Escaneados especiales:', e);
         }
 
-        // Mostrar dropdown con resultados
-        mostrarDropdownBloques(dropdownId, inputId, Array.from(coincidencias).slice(0, 10));
+        // Mostrar dropdown con resultados (pasamos objetos {display, folio})
+        mostrarDropdownBloques(dropdownId, inputId, coincidencias.slice(0, 10));
 
     } catch (error) {
         console.error('Error en autocompletarBuscaBloques:', error);
@@ -2090,18 +2104,15 @@ function mostrarDropdownBloques(dropdownId, inputId, coincidencias) {
     if (coincidencias.length === 0) {
         dropdownDiv.innerHTML = '<div style="padding: 8px 12px; color: #999;">Sin resultados</div>';
     } else {
-        dropdownDiv.innerHTML = coincidencias.map(item => `
-            <div onclick="seleccionarBloqueAutocompletado('${inputId}', '${item}')" style="
-                padding: 10px 12px;
-                cursor: pointer;
-                border-bottom: 1px solid #eee;
-                font-size: 13px;
-                font-weight: 500;
-                color: #333;
-            " onmouseover="this.style.backgroundColor='#f5f5f5'" onmouseout="this.style.backgroundColor='white'">
-                📦 ${item}
-            </div>
-        `).join('');
+        dropdownDiv.innerHTML = coincidencias.map(item => {
+            const isString = typeof item === 'string';
+            const display = isString ? item : (item.display || 'Sin resultados');
+            let val = isString ? item : (item.folio || item.display || '');
+            if (typeof val !== 'string') val = String(val);
+            const safeVal = val.replace(/'/g, "\\'");
+            const safeDisplay = String(display).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `\n            <div onclick="seleccionarBloqueAutocompletado('${inputId}', '${safeVal}')" style="\n                padding: 10px 12px;\n                cursor: pointer;\n                border-bottom: 1px solid #eee;\n                font-size: 13px;\n                font-weight: 500;\n                color: #333;\n            " onmouseover="this.style.backgroundColor='#f5f5f5'" onmouseout="this.style.backgroundColor='white'">\n                📦 ${safeDisplay}\n            </div>\n            `;
+        }).join('');
     }
 
     dropdownDiv.style.display = 'block';
@@ -2776,7 +2787,7 @@ function mostrarResultadoBloqueModo(divResultado, folio, tipo, datos) {
                     <i class="bi bi-box"></i> 
                     Bloque encontrado en ${tipo} (${cantidadItems} items)
                 </div>
-                <button class="btn btn-sm btn-outline-success" onclick="agregarBloqueEnModo()">
+                <button class="btn btn-sm btn-outline-success" onclick="document.getElementById('inputBusquedaBloqueNuevo').value='${folio}'; agregarBloqueEnModo()">
                     <i class="bi bi-plus-circle"></i> Agregar al bloque
                 </button>
             </div>
@@ -3211,6 +3222,13 @@ async function agregarBloqueEnModo(continuarAgregando = false) {
         }
 
         if (llantasParaAgregar.length > 0) {
+            // Asegurar que las llantas existan en el inventario; las que no, se agregarán automáticamente
+            try {
+                await asegurarLlantasEnInventario(llantasParaAgregar);
+            } catch (e) {
+                console.warn('Error al asegurar llantas en inventario:', e);
+            }
+
             actualizarTablaLlantasBloque(llantasParaAgregar);
             
             if (continuarAgregando) {
@@ -4735,6 +4753,68 @@ function searchInventario() {
             return n > max ? n : max;
         }, 0);
         return String(maxId + 1);
+    }
+
+    // Extrae código y descripción de un objeto llanta recibido desde distintas fuentes
+    function _extraerCodigoDescripcion(item) {
+        if (!item) return { code: '', desc: '' };
+        const code = (item.clave || item.Clave || item.codigo || item.Codigo || item.code || item.id || item.ID || item.CODIGO || item.COD) || '';
+        const desc = (item.descripcion || item.Descripcion || item.DESCRIPCION || item.nombre || item.Nombre || item.producto || item.Producto || item.descripcionProducto) || '';
+        return { code: String(code).trim(), desc: String(desc).trim() };
+    }
+
+    // Asegura que cada llanta del array exista en inventario; si falta, la agrega a SheetDB e inventario local.
+    async function asegurarLlantasEnInventario(llantas) {
+        if (!Array.isArray(llantas) || llantas.length === 0) return [];
+        const base = 'https://sheetdb.io/api/v1/utz051ngs76ar';
+        const añadidas = [];
+
+        for (const item of llantas) {
+            const { code, desc } = _extraerCodigoDescripcion(item);
+            const descripcionNormal = (desc || '').toUpperCase();
+
+            // Buscar coincidencia por clave exacta
+            let existe = false;
+            if (code) {
+                existe = inventario.some(i => String(i.clave || i.Clave || i.ID || i.id || '').toUpperCase() === String(code).toUpperCase());
+            }
+
+            // Si no existe por clave, intentar buscar por descripción parcial
+            if (!existe && descripcionNormal) {
+                existe = inventario.some(i => (i.descripcion || '').toUpperCase().includes(descripcionNormal) || descripcionNormal.includes((i.descripcion || '').toUpperCase()));
+            }
+
+            if (!existe) {
+                // Preparar objeto mínimo para agregar
+                const nuevaClave = code || generarNuevoIdInventario();
+                const nueva = {
+                    clave: nuevaClave,
+                    descripcion: desc || 'Sin descripción'
+                };
+
+                try {
+                    const res = await fetch(base, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ data: [nueva] })
+                    });
+                    if (res.ok) {
+                        // Añadir al inventario local con campos mínimos (el resto puede completarse luego)
+                        inventario.push(Object.assign({ peso: '', volumen: '', valor: '', linea: '' }, nueva));
+                        añadidas.push(nueva);
+                        // Pequeña pausa para no saturar la API
+                        await new Promise(r => setTimeout(r, 120));
+                    } else {
+                        console.warn('No se pudo agregar llanta a SheetDB', await res.text());
+                    }
+                } catch (err) {
+                    console.warn('Error al agregar llanta a SheetDB:', err);
+                }
+            }
+        }
+
+        if (añadidas.length > 0) renderInventario();
+        return añadidas;
     }
     function limpiarFormularioInventario() {
         document.getElementById('agregarId').value = '';
