@@ -656,6 +656,8 @@ document.addEventListener('DOMContentLoaded', function() {
 <header>
     <img src="https://cdn.prod.website-files.com/62b4e3084bb69b3cbd747e80/62b4e344650db7626d857053_TS_ORGINAL_LOGO.png" alt="Logo Tres Siglos" />
     <h1>Sistema de cubicaje - Comercializadora de Llantas Tres Siglos</h1>
+    <div style="margin-left: auto; display:flex; gap:8px; align-items:center;">
+    </div>
 </header>
 
 <nav>
@@ -1898,6 +1900,40 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById(button.dataset.tab).classList.add('active');
         });
     });
+    
+    // Helper para abrir una pestaña por nombre (y forzar actualización si es Apartados)
+    function openTabByName(tabName) {
+        const btn = document.querySelector(`.tablink[data-tab="${tabName}"]`);
+        if (btn) {
+            btn.click();
+            // Si es la pestaña de Apartados, forzar la carga de datos
+            if (tabName === 'pedidos-Apartados' && typeof fetchPedidosApartados === 'function') {
+                try { fetchPedidosApartados(); } catch (e) { console.warn(e); }
+            }
+        }
+    }
+
+    // Si la URL tiene hash al cargar, abrir esa pestaña
+    if (location.hash) {
+        const hashTab = location.hash.replace('#', '');
+        setTimeout(() => openTabByName(hashTab), 50);
+    }
+
+    // Manejar cambios de hash para poder enlazar directamente
+    window.addEventListener('hashchange', () => {
+        const hashTab = location.hash.replace('#', '');
+        openTabByName(hashTab);
+    });
+
+    // Enlace rápido en header: asegurar que haga lo mismo sin recargar
+    const linkApartados = document.getElementById('linkApartadosHeader');
+    if (linkApartados) {
+        linkApartados.addEventListener('click', (e) => {
+            e.preventDefault();
+            history.replaceState(null, '', '#pedidos-Apartados');
+            openTabByName('pedidos-Apartados');
+        });
+    }
 });
 function mostrarEstado(mensaje, tipo = 'info') {
     console.log(mensaje);
@@ -13046,8 +13082,20 @@ async function generarPDFPedidosApartados() {
             text: 'Por favor espere mientras se genera el documento...'
         });
         
-        // Esperar a que el DOM se actualice
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Esperar a que el DOM se actualice: usar requestAnimationFrame para esperar al siguiente ciclo de render
+        function waitForRender() {
+            return new Promise(resolve => {
+                // Esperar dos frames y un pequeño timeout para asegurarnos de que el navegador pintó
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        setTimeout(resolve, 50);
+                    });
+                });
+            });
+        }
+
+        // Esperar a que la actualización visual se complete antes de generar el PDF
+        await waitForRender();
         // Crear un contenedor temporal para el PDF
         const tempDiv = document.createElement('div');
         tempDiv.className = 'pdf-container';
