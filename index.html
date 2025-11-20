@@ -2083,9 +2083,9 @@ async function autocompletarBuscaBloques(inputId, dropdownId) {
             console.warn('Error buscando en traspasos:', e);
         }
 
-        // 3. Buscar en "Escaneados especiales" (traspasos)
+        // 3. Buscar en "Facturas" (traspasos)
         try {
-            const resEscan = await fetch(base + '?sheet=Escaneados especiales');
+            const resEscan = await fetch(base + '?sheet=Facturas');
             if (resEscan.ok) {
                 const escaneados = await resEscan.json();
                 if (Array.isArray(escaneados)) {
@@ -2103,7 +2103,7 @@ async function autocompletarBuscaBloques(inputId, dropdownId) {
                 }
             }
         } catch (e) {
-            console.warn('Error buscando en Escaneados especiales:', e);
+            console.warn('Error buscando en Facturas:', e);
         }
 
         // Mostrar dropdown con resultados (pasamos objetos {display, folio})
@@ -2182,8 +2182,8 @@ async function buscarBloquePorFolio() {
             normalizeKey(b.nombre) === folioNorm || normalizeKey(b.datos[0]?.Folio) === folioNorm
         );
 
-        // Buscar en "Escaneados especiales" (traspasos)
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Escaneados especiales');
+        // Buscar en "Facturas" (traspasos)
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Facturas');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => {
             const nombre = normalizeKey(r.Nombre || r.nombre || '');
@@ -2238,7 +2238,7 @@ async function buscarBloquePorFolio() {
         } else if (escaneadosDelFolio.length > 0) {
             div.innerHTML = `
                 <div class="alert alert-info mt-2">
-                    Bloque encontrado en Escaneados especiales: ${folioRaw}<br>
+                    Bloque encontrado en Facturas: ${folioRaw}<br>
                     Productos: ${escaneadosDelFolio.length}<br>
                     <table class="table table-bordered mt-2">
                         <thead>
@@ -2364,18 +2364,18 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
             console.log("Encontrado en traspasos recién escaneadas:", traspasosRecientes);
             await procesarBloquetraspasos(traspasosRecientes);
             productosAgregados = true;
-        }
+        }                   
 
-        // 2. Buscar en escaneados especiales
-        console.log("Buscando en escaneados especiales...");
+        // 2. Buscar en Facturas
+        console.log("Buscando en Facturas...");
         try {
-            const resEscaneados = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Escaneados especiales');
+            const resEscaneados = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Facturas');
             if (!resEscaneados.ok) {
                 const txt = await resEscaneados.text().catch(()=>'<no body>');
-                console.warn('Respuesta no OK de Escaneados especiales:', resEscaneados.status, txt);
+                console.warn('Respuesta no OK de Facturas:', resEscaneados.status, txt);
             } else {
                 const escaneados = await resEscaneados.json();
-                console.log("Total de registros en Escaneados especiales:", escaneados.length);
+                console.log("Total de registros en Facturas:", escaneados.length);
                 console.log("Buscando coincidencia de:", folio, "en registros...");
                 escaneados.slice(0, 5).forEach((r, idx) => {
                     console.log(`  Registro ${idx}: Nombre="${r.Nombre}" | Folio="${r.Folio}" | Nombre norm="${normalizeKey(r.Nombre || r.nombre || '')}" | Folio norm="${normalizeKey(r.Folio || r.folio || '')}"`);
@@ -2390,19 +2390,19 @@ async function agregarBloquePorFolioPedido(agregarMas = false) {
                 });
 
                 if (escaneadosDelFolio.length > 0) {
-                    console.log("Encontrado en escaneados especiales:", escaneadosDelFolio);
+                    console.log("Encontrado en Facturas:", escaneadosDelFolio);
                     try {
                         await procesarBloquetraspasos(escaneadosDelFolio);
                         productosAgregados = true;
                     } catch (e) {
-                        console.error('Error al procesar productos de Escaneados especiales:', e);
-                        document.getElementById('bloqueBuscadoPedido').innerHTML = `<div class="alert alert-danger mt-2">Error al procesar productos de Escaneados especiales: ${e.message || e}</div>`;
+                        console.error('Error al procesar productos de Facturas:', e);
+                        document.getElementById('bloqueBuscadoPedido').innerHTML = `<div class="alert alert-danger mt-2">Error al procesar productos de Facturas: ${e.message || e}</div>`;
                         return;
                     }
                 }
             }
         } catch (e) {
-            console.error('Fetch error Escaneados especiales:', e);
+            console.error('Fetch error Facturas:', e);
         }
 
         // 2.5. Buscar en traspasos (sheet)
@@ -2581,9 +2581,9 @@ async function buscarYAgregarBloque() {
             encontrado = true;
         }
 
-        // 2. Buscar en escaneados especiales
+        // 2. Buscar en Facturas
         try {
-            const resEscaneados = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Escaneados especiales');
+            const resEscaneados = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Facturas');
             if (resEscaneados.ok) {
                 const escaneados = await resEscaneados.json();
                 const escaneadosDelFolio = escaneados.filter(r => {
@@ -2597,7 +2597,7 @@ async function buscarYAgregarBloque() {
                 }
             }
         } catch (e) {
-            console.warn('Error buscando en Escaneados especiales:', e);
+            console.warn('Error buscando en Facturas:', e);
         }
 
         // 2.5. Buscar en Facturas
@@ -2732,9 +2732,9 @@ async function buscarBloqueEnModo() {
             encontrado = true;
         }
 
-        // 2. Buscar en escaneados especiales
+        // 2. Buscar en Facturas
         try {
-            const resEscaneados = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Escaneados especiales');
+            const resEscaneados = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Facturas');
             if (resEscaneados.ok) {
                 const escaneados = await resEscaneados.json();
                 const escaneadosDelFolio = escaneados.filter(r => {
@@ -2743,12 +2743,12 @@ async function buscarBloqueEnModo() {
                     return nombre === folio || fol === folio || nombre.includes(folio) || fol.includes(folio);
                 });
                 if (escaneadosDelFolio.length > 0) {
-                    mostrarResultadoBloqueModo(divResultado, folio, 'escaneados especiales', escaneadosDelFolio);
+                    mostrarResultadoBloqueModo(divResultado, folio, 'Facturas', escaneadosDelFolio);
                     encontrado = true;
                 }
             }
         } catch (e) {
-            console.warn('Error buscando en Escaneados especiales:', e);
+            console.warn('Error buscando en Facturas:', e);
         }
 
         // 3. Buscar en traspasos (sheet) - MÁS EQUIPADO
@@ -3240,7 +3240,7 @@ async function agregarBloqueEnModo(continuarAgregando = false) {
             llantasParaAgregar = llantasParaAgregar.concat(traspasosRecientes);
         }
 
-        const resEscaneados = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Escaneados especiales');
+        const resEscaneados = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Facturas');
         const escaneados = await resEscaneados.json();
         const escaneadosDelFolio = escaneados.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
@@ -8554,7 +8554,7 @@ async function guardarBloqueEspecial() {
         }));
 
         // Guardar en SheetDB
-        const response = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Escaneados especiales', {
+        const response = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Facturas', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: datosBloque })
@@ -8925,7 +8925,7 @@ async function cargarEscaneosGuardados(filtro = '', silencioso = false) {
             console.log('Iniciando carga de escaneos guardados...');
         }
         
-        const response = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Escaneados especiales');
+        const response = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Facturas');
         if (!response.ok) throw new Error('Error al cargar escaneos');
         
         const datos = await response.json();
@@ -9031,7 +9031,7 @@ function renderTable() {
 function mostrarBloquesGuardadosEspeciales() {
     const container = document.getElementById('bloquesGuardadosEspeciales');
     
-    fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Escaneados especiales')
+    fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Facturas')
         .then(response => response.json())
         .then(datos => {
             // Agrupar por nombre de bloque
@@ -9091,7 +9091,7 @@ async function eliminarBloqueEspecial(nombre) {
     if (!confirm(`¿Está seguro de eliminar el bloque "${nombre}"?`)) return;
 
     try {
-        const response = await fetch(`https://sheetdb.io/api/v1/1jlb9vayycybq/Nombre/${encodeURIComponent(nombre)}?sheet=Escaneados especiales`, {
+        const response = await fetch(`https://sheetdb.io/api/v1/1jlb9vayycybq/Nombre/${encodeURIComponent(nombre)}?sheet=Facturas`, {
             method: 'DELETE'
         });
 
@@ -9207,7 +9207,7 @@ async function confirmarGuardadoEscaneo() {
             Descripción: item.Descripcion || ''  // Notar la tilde en 'Descripción'
         }));
 
-        const response = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Escaneados especiales', {
+        const response = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Facturas', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: datosParaGuardar })
@@ -9252,7 +9252,7 @@ async function eliminarEscaneo(nombre) {
     if (!confirm(`¿Estás seguro de que deseas eliminar el escaneo "${nombre}"?`)) return;
 
     try {
-        const response = await fetch(`/Nombre/${encodeURIComponent(nombre)}?sheet=Escaneados especiales`, {
+        const response = await fetch(`/Nombre/${encodeURIComponent(nombre)}?sheet=Facturas`, {
             method: 'DELETE'
         });
 
@@ -13003,8 +13003,8 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
             llantasParaAgregar = llantasParaAgregar.concat(traspasosRecientes);
         }
 
-        // Buscar en la hoja de cálculo "Escaneados especiales"
-        const resEscaneadosEspeciales = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Escaneados especiales');
+        // Buscar en la hoja de cálculo "Facturas"
+        const resEscaneadosEspeciales = await fetch('https://sheetdb.io/api/v1/1jlb9vayycybq?sheet=Facturas');
         const escaneadosEspeciales = await resEscaneadosEspeciales.json();
         const escaneadosEspecialesDelFolio = escaneadosEspeciales.filter(r => 
             r.Nombre?.toLowerCase() === folio ||
