@@ -10993,7 +10993,8 @@ const facturaClearBtn = document.getElementById('facturaClearBtn');
 const facturaProgressBar = document.getElementById('facturaProgressBar');
 
 // Variables globales para el manejo de datos
-let bloquestraspasos = []; 
+let bloquestraspasos = [];
+let bloquesfacturas = []; // almacenar bloques cargados desde la hoja 'Facturas'
 let archivosEscaneados = []; 
 let traspasosParaGuardar = [];
 let llantasAcumuladasEnBloque = []; // Variable para acumular llantas en el modo de búsqueda
@@ -11001,6 +11002,46 @@ let llantasAcumuladasEnBloque = []; // Variable para acumular llantas en el modo
 // Variables nuevas para el sistema de bloques
 let extractedData = [];
 let escaneosActuales = []; // Para almacenar temporalmente los escaneos antes de formar el bloque
+
+
+// Normalizar contenedores de facturas/traspasos: moverlos a su pane correspondiente o eliminarlos si están en body
+function normalizeFacturaContainers() {
+    try {
+        const cont = document.getElementById('facturaGroupsContainer');
+        const expectedParent = document.getElementById('traspasosNormales') || document.querySelector('.tab-pane#traspasosNormales') || document.getElementById('traspasos');
+        if (cont) {
+            if (expectedParent) {
+                if (cont.parentElement !== expectedParent) {
+                    expectedParent.appendChild(cont);
+                    console.log('normalize: moved `facturaGroupsContainer` into', expectedParent.id || expectedParent.className);
+                }
+            } else {
+                if (cont.parentElement === document.body) {
+                    cont.remove();
+                    console.warn('normalize: removed `facturaGroupsContainer` from body because target parent not found');
+                }
+            }
+        }
+
+        const contF = document.getElementById('facturaGroupsContainer_facturas');
+        const expectedParentF = document.getElementById('traspasosEspeciales') || document.querySelector('.tab-pane#traspasosEspeciales') || document.getElementById('facturas') || document.querySelector('.tab-pane#facturas');
+        if (contF) {
+            if (expectedParentF) {
+                if (contF.parentElement !== expectedParentF) {
+                    expectedParentF.appendChild(contF);
+                    console.log('normalize: moved `facturaGroupsContainer_facturas` into', expectedParentF.id || expectedParentF.className);
+                }
+            } else {
+                if (contF.parentElement === document.body) {
+                    contF.remove();
+                    console.warn('normalize: removed `facturaGroupsContainer_facturas` from body because target parent not found');
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('normalizeFacturaContainers error:', e);
+    }
+}
 
 
 // Event listener para el botón de limpiar caché
@@ -11145,11 +11186,48 @@ function agregarBotonLimpiarCache() {
 // Llamar a esta función cuando se carga la página
 document.addEventListener('DOMContentLoaded', () => {
     agregarBotonLimpiarCache();
+    // Normalizar contenedores que pudieran haberse creado fuera de sus pestañas
+    try {
+        if (typeof normalizeFacturaContainers === 'function') normalizeFacturaContainers();
+    } catch (e) { console.warn('normalizeFacturaContainers error:', e); }
     // Cargar los bloques de traspasos al iniciar la página
     actualizarBloquestraspasos().then(success => {
         if (!success) {
             console.error('No se pudieron cargar los bloques de traspasos inicialmente');
         }
+    });
+    // Cargar los bloques de facturas al iniciar la página (se renderiza en su pestaña)
+    if (typeof actualizarBloquesfacturas === 'function') {
+        actualizarBloquesfacturas().then(success => {
+            if (!success) console.error('No se pudieron cargar los bloques de facturas inicialmente');
+        });
+    }
+});
+// Asegurarse de recargar facturas cuando el usuario abre la pestaña Facturas
+const btnFacturasTab = document.getElementById('traspasos-especiales-tab');
+if (btnFacturasTab) {
+    btnFacturasTab.addEventListener('click', () => {
+        // Esperar brevemente a que Bootstrap muestre el pane
+        setTimeout(() => {
+            if (typeof actualizarBloquesfacturas === 'function') actualizarBloquesfacturas();
+        }, 150);
+    });
+}
+
+// Escuchar el evento 'shown.bs.tab' para recargar la vista de Facturas cuando el pane quede activo (Bootstrap)
+document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(btn => {
+    btn.addEventListener('shown.bs.tab', (e) => {
+        try {
+            // Normalizar contenedores cuando cambian las pestañas
+            try { if (typeof normalizeFacturaContainers === 'function') normalizeFacturaContainers(); } catch(e){ console.warn('normalizeFacturaContainers error on tab change', e); }
+            const target = btn.getAttribute('data-bs-target') || btn.getAttribute('data-target') || '';
+            if (target && (target.includes('traspasosEspeciales') || target.includes('facturas'))) {
+                console.log('Pestaña Facturas activada por shown.bs.tab — actualizando facturas');
+                if (typeof mostrarBloquesfacturas === 'function') mostrarBloquesfacturas();
+                // también asegurar la recarga desde el origen si hace falta
+                if (typeof actualizarBloquesfacturas === 'function') actualizarBloquesfacturas();
+            }
+        } catch (err) { console.warn('Error manejando shown.bs.tab:', err); }
     });
 });
 // Agregar antes de traspasoscanBtn.onclick (aproximadamente línea 1850)
@@ -11636,20 +11714,21 @@ function eliminarArchivoEscaneado(idx) {
 function mostrarBloquestraspasos(filtro = '') {
     console.log('Mostrando bloques de traspasos, total:', bloquestraspasos?.length || 0);
     
-    let container = document.getElementById('facturaGroupsContainer');
+    let container = document.getElementById('traspasosGroupsContainer');
     if (!container) {
-        console.warn('⚠️ Contenedor `facturaGroupsContainer` no existe. Se creará dinámicamente para mostrar bloques.');
-        // Intentar agregar dentro de la pestaña #traspasos si existe
-        const parentTab = document.getElementById('traspasos') || document.querySelector('.tabcontent#traspasos');
+        console.warn('⚠️ Contenedor `traspasosGroupsContainer ` no existe. Se creará dinámicamente para mostrar bloques.');
+        // Intentar agregar dentro de la pestaña específica de "Traspasos" si existe
+        // Priorizar el pane concreto `#traspasosNormales` (donde están los traspasos normales)
+        const parentTab = document.getElementById('traspasosNormales') || document.querySelector('.tab-pane#traspasosNormales') || document.getElementById('traspasos') || document.querySelector('.tabcontent#traspasos');
         container = document.createElement('div');
-        container.id = 'facturaGroupsContainer';
+        container.id = 'traspasosGroupsContainer';
         if (parentTab) {
             parentTab.appendChild(container);
-            console.log('🔧 Se creó `facturaGroupsContainer` dentro de la pestaña de traspasos.');
+            console.log('🔧 Se creó `traspasosGroupsContainer` dentro de la pestaña de traspasos.');
         } else {
-            // Si no encontramos el padre, anexar al body como último recurso
-            document.body.appendChild(container);
-            console.warn('⚠️ No se encontró la pestaña #traspasos; `facturaGroupsContainer` se añadió al body para evitar errores.');
+            // No crear/adjuntar al body para evitar que aparezca en otras pestañas.
+            console.warn('⚠️ No se encontró la pestaña #traspasosNormales; no se creará `traspasosGroupsContainer` para evitar aparezca en otras pestañas.');
+            return; // Salir para evitar crear el contenedor en el body
         }
     }
 
@@ -11720,6 +11799,131 @@ function mostrarBloquestraspasos(filtro = '') {
             container.innerHTML += bloqueHTML;
         });
 }
+
+// Mostrar bloques de la hoja 'Facturas' en la pestaña Facturas
+function mostrarBloquesfacturas(filtro = '') {
+    console.log('Mostrando bloques de Facturas, total:', bloquesfacturas?.length || 0);
+
+    let containerFacturas = document.getElementById('facturaGroupsContainer_facturas');
+    if (!containerFacturas) {
+        const parentFacturas = document.getElementById('traspasosEspeciales') || document.querySelector('.tab-pane#traspasosEspeciales') || document.getElementById('facturas') || document.querySelector('.tab-pane#facturas');
+        console.log('mostrarBloquesfacturas: parentFacturas encontrado:', !!parentFacturas, parentFacturas && (parentFacturas.id || parentFacturas.className));
+        containerFacturas = document.createElement('div');
+        containerFacturas.id = 'facturaGroupsContainer_facturas';
+        if (parentFacturas) {
+            parentFacturas.appendChild(containerFacturas);
+            console.log('Se creó `facturaGroupsContainer_facturas` dentro de:', parentFacturas.id || parentFacturas.className);
+        } else {
+            // Evitar anexar al body para que los bloques de Facturas no aparezcan fuera de su pestaña
+            console.warn('mostrarBloquesfacturas: parentFacturas no encontrado; no se creará `facturaGroupsContainer_facturas` para evitar mostrar datos fuera de la pestaña Facturas.');
+            return;
+        }
+    } else {
+        console.log('mostrarBloquesfacturas: containerFacturas ya existe en DOM y su padre es:', containerFacturas.parentElement && (containerFacturas.parentElement.id || containerFacturas.parentElement.className));
+    }
+
+    containerFacturas.innerHTML = '';
+
+    if (!bloquesfacturas || bloquesfacturas.length === 0) {
+        containerFacturas.innerHTML = '<div class="alert alert-info">No hay facturas guardadas.</div>';
+        return;
+    }
+
+    const bloquesSinDuplicados = bloquesfacturas.reduce((acc, current) => {
+        const x = acc.find(item => item.nombre === current.nombre);
+        if (!x) acc.push(current);
+        return acc;
+    }, []);
+
+    const bloquesFiltrados = bloquesSinDuplicados.filter(b => b.nombre.toLowerCase().includes(filtro.toLowerCase()));
+
+    bloquesFiltrados.forEach((bloque, idx) => {
+        const bloqueHTML = `
+            <div class="card mb-2" id="bloqueFactura_facturas_${idx}">
+                <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer;" onclick="toggleDetalleBloqueFacturas(${idx})">
+                    <strong>${bloque.nombre}</strong>
+                    <span class="toggle-icon">▼</span>
+                    <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); eliminarBloqueEspecial('${bloque.nombre}')">Eliminar bloque</button>
+                </div>
+                <div class="card-body collapse" id="detalleBloque_facturas_${idx}">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Folio</th>
+                                <th>Fecha de Emisión</th>
+                                <th>Usuario</th>
+                                <th>Cantidad</th>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${bloque.datos.map((f, indexFila) => `
+                                <tr>
+                                    <td>${indexFila === 0 ? (f.Folio || f.folio || '') : ''}</td>
+                                    <td>${indexFila === 0 ? (f['Fecha de Emisión'] || f['fecha de emisión'] || '') : ''}</td>
+                                    <td>${indexFila === 0 ? (f.Usuario || f.usuario || '') : ''}</td>
+                                    <td>${f.Cantidad || ''}</td>
+                                    <td>${f.Código || f.Codigo || ''}</td>
+                                    <td>${f.Descripción || f.Descripcion || ''}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        containerFacturas.innerHTML += bloqueHTML;
+    });
+}
+
+// Toggle específico para facturas (IDs con sufijo _facturas)
+function toggleDetalleBloqueFacturas(idx) {
+    const detalle = document.getElementById(`detalleBloque_facturas_${idx}`);
+    if (!detalle) return;
+    const icon = detalle.parentElement.querySelector('.toggle-icon');
+    if (detalle.style.display === 'none' || !detalle.style.display) {
+        detalle.style.display = 'block';
+        if (icon) icon.textContent = '▲';
+    } else {
+        detalle.style.display = 'none';
+        if (icon) icon.textContent = '▼';
+    }
+}
+
+// Función para cargar/actualizar bloques desde la hoja 'Facturas'
+async function actualizarBloquesfacturas() {
+    try {
+        console.log('Iniciando actualización de bloques de facturas...');
+        const res = await fetch('https://sheetdb.io/api/v1/kooovtq1xufms?sheet=Facturas');
+        if (!res.ok) throw new Error(`No se pudo cargar facturas. Status: ${res.status}`);
+        const facturas = await res.json();
+        console.log('Datos recibidos de la hoja Facturas:', facturas);
+
+        if (!Array.isArray(facturas) || facturas.length === 0) {
+            bloquesfacturas = [];
+            mostrarBloquesfacturas();
+            return true;
+        }
+
+        let grupos = {};
+        facturas.forEach(f => {
+            if (!f) return;
+            const nombre = (f.Nombre || f.Folio || f.nombre || f.folio || 'Sin nombre').toString().trim();
+            grupos[nombre] = grupos[nombre] || [];
+            grupos[nombre].push(f);
+        });
+
+        bloquesfacturas = Object.keys(grupos).map(nombre => ({ nombre, datos: grupos[nombre] }));
+        console.log('Bloques procesados (facturas):', bloquesfacturas);
+        mostrarBloquesfacturas();
+        return true;
+    } catch (error) {
+        console.error('Error actualizando bloques de facturas:', error);
+        return false;
+    }
+}
+
 async function actualizarBloquestraspasos() {
     try {
         console.log('Iniciando actualización de bloques de traspasos...');
@@ -12897,7 +13101,12 @@ document.querySelector('button[data-tab="traspasos"]').addEventListener('click',
         }
         mostrarBloquestraspasos();
     } catch (e) {
-        document.getElementById('facturaGroupsContainer').innerHTML = '<div class="alert alert-danger">No se pudo cargar traspasos guardadas.</div>';
+        const contErr = document.getElementById('facturaGroupsContainer');
+        if (contErr) {
+            contErr.innerHTML = '<div class="alert alert-danger">No se pudo cargar traspasos guardadas.</div>';
+        } else {
+            console.warn('No se encontró `facturaGroupsContainer` para mostrar el error de carga de traspasos');
+        }
     }
 });
 
