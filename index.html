@@ -1793,7 +1793,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <!-- Pestaña 1: Escaneo de Traspasos (externo) -->
                     <div class="tab-pane fade show active" id="traspasosNormales">
                         <div style="padding:8px;">
-                            <iframe src="https://cubicaje-tres-siglos.github.io/ESCANEOTRASPASOS/" 
+                            <iframe src="https://cubicaje-tres-siglos.github.io/ESCANEOTRASPASOS/
                                     style="width:100%; height:800px; border:none; border-radius:8px;" 
                                     title="Escaneo de Traspasos"></iframe>
                         </div>
@@ -7912,7 +7912,7 @@ function calcularCombinaciones() {
        },
       'PESADO': { 
            volumen: 0.270,  // 279 litros = 0.279 m³
-           peso: 50       // 50 kg promedio
+           peso: 40       // 50 kg promedio
        },
       'AGRICOLA_MINERO': { 
            volumen: 1.1,  // 1100 litros = 1.1 m³
@@ -8030,7 +8030,7 @@ function calcularCombinaciones() {
     const resultadoExistente = panelVerificacion.querySelector('.alert');
     if (resultadoExistente) {
         resultadoExistente.remove();    
-    }
+    }              
     panelVerificacion.appendChild(resultadoDiv);
 }
 // Variables globales adicionales
@@ -11292,17 +11292,48 @@ async function agregarNuevosProductosAlInventario(productos) {
         if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
         const inventarioActual = await res.json();
 
-        // Crear Set de códigos existentes
+        // Crear Set de códigos existentes (normalizar a mayúsculas)
         const codigosInventario = new Set(
-            inventarioActual.map(item => item.clave?.toString().trim())
+            inventarioActual.map(item => item.clave?.toString().trim().toUpperCase())
                 .filter(Boolean)
         );
 
-        // Filtrar productos nuevos
-        const nuevos = productos.filter(p => {
-            const codigo = p.Código?.toString().trim();
-            return codigo && !codigosInventario.has(codigo);
+        // Crear función para normalizar descripciones y mapa de descripciones existentes
+        const normalizeDesc = s => String(s || '').toUpperCase().replace(/\s+/g, ' ').replace(/[\(\)\[\]\,\.;:\-\/]/g, '').trim();
+        const descripcionesInventario = new Map();
+        inventarioActual.forEach(item => {
+            const d = normalizeDesc(item.descripcion || item.Descripción || item.Descrip || item.Descripcion || '');
+            if (!d) return;
+            if (!descripcionesInventario.has(d)) descripcionesInventario.set(d, []);
+            descripcionesInventario.get(d).push(item.clave?.toString().trim().toUpperCase());
         });
+
+        // Filtrar productos nuevos: eliminar duplicados por clave y omitir coincidencias por descripción
+        const nuevosMap = {};
+        const omitidosPorDescripcion = [];
+        for (const p of productos) {
+            const codigoRaw = p.Código?.toString().trim();
+            const descRaw = (p.Descripción || p.Descripcion || '').toString().trim();
+            if (!codigoRaw && !descRaw) continue;
+            const codigo = codigoRaw ? codigoRaw.toUpperCase() : null;
+            const descNorm = normalizeDesc(descRaw);
+
+            // Si la descripción ya existe en inventario, omitimos (posible duplicado aunque clave difiera)
+            if (descNorm && descripcionesInventario.has(descNorm)) {
+                omitidosPorDescripcion.push({ codigo: codigo || '(sin clave)', descripcion: descRaw, existeConClave: descripcionesInventario.get(descNorm) });
+                continue;
+            }
+
+            // Si ya existe en inventario por clave o ya lo tenemos en el mapa, omitir
+            if (codigo && (codigosInventario.has(codigo) || nuevosMap[codigo])) continue;
+            if (codigo) nuevosMap[codigo] = p;
+            else {
+                // Sin clave pero sin coincidencia por descripcion; generar id temporal para evitar duplicados en map
+                const tempKey = 'NOCLAVE_' + Math.random().toString(36).slice(2, 9);
+                nuevosMap[tempKey] = p;
+            }
+        }
+        const nuevos = Object.values(nuevosMap);
 
         console.log(`Se encontraron ${nuevos.length} productos nuevos`);
 
@@ -11339,14 +11370,22 @@ async function agregarNuevosProductosAlInventario(productos) {
                         pesoCalc = 0;
                     }
 
-                    productosValidos.push({
-                        clave: producto.Código?.toString().trim(),
-                        descripcion: desc,
-                        linea: determinarTipoLlanta(desc),
-                        peso: Number(pesoCalc) || 0,
-                        volumen: Number(volumenCalc) || 0,
-                        valor: '' // Para llenado manual
-                    });
+                    const claveNorm = producto.Código?.toString().trim().toUpperCase();
+                    const descNorm = normalizeDesc(desc);
+
+                    // Segunda comprobación por descripción para evitar duplicados que se colaron
+                    if (descNorm && descripcionesInventario.has(descNorm)) {
+                        omitidosPorDescripcion.push({ codigo: claveNorm || '(sin clave)', descripcion: desc, existeConClave: descripcionesInventario.get(descNorm) });
+                    } else {
+                        productosValidos.push({
+                            clave: claveNorm,
+                            descripcion: desc,
+                            linea: determinarTipoLlanta(desc),
+                            peso: Number(pesoCalc) || 0,
+                            volumen: Number(volumenCalc) || 0,
+                            valor: '' // Para llenado manual
+                        });
+                    }
 
                 } catch (error) {
                     fallos.push({
@@ -11356,23 +11395,66 @@ async function agregarNuevosProductosAlInventario(productos) {
                 }
             }
 
-            if (productosValidos.length > 0) {
+            // Antes de enviar, filtrar cualquier producto que ya exista (evitar race conditions)
+            let productosParaEnviar = productosValidos.filter(p => !codigosInventario.has(p.clave));
+
+            // Verificación adicional en servidor: consultar SheetDB por cada clave
+            // Esto garantiza que aunque otro proceso haya insertado la clave después
+            // del primer GET, no la intentemos insertar de nuevo.
+            if (productosParaEnviar.length > 0) {
+                const existentesEnServidor = [];
+                try {
+                    await Promise.all(productosParaEnviar.map(async (p) => {
+                        try {
+                            const url = `https://sheetdb.io/api/v1/kmrvwd3n1r0m7/clave/${encodeURIComponent(p.clave)}`;
+                            const r = await fetch(url);
+                            if (r.ok) {
+                                const data = await r.json();
+                                // Si la API devuelve un array con elementos, la clave ya existe
+                                if (Array.isArray(data) && data.length > 0) {
+                                    existentesEnServidor.push(p.clave);
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('No se pudo verificar existencia en servidor para', p.clave, e);
+                            // En caso de error de red, conservamos p para intentar insertarlo (será capturado por fallos si ya existe)
+                        }
+                    }));
+
+                    // Remover del envío las claves que ya existen en servidor
+                    if (existentesEnServidor.length > 0) {
+                        productosParaEnviar = productosParaEnviar.filter(p => !existentesEnServidor.includes(p.clave));
+                        // Añadir esas claves al set local para evitar reintentos
+                        existentesEnServidor.forEach(c => codigosInventario.add(c));
+                        console.log('Se omitieron del envío (ya en servidor):', existentesEnServidor);
+                    }
+                } catch (e) {
+                    console.warn('Error verificando claves en servidor:', e);
+                }
+            }
+
+            if (productosParaEnviar.length > 0) {
                 try {
                     const res = await fetch('https://sheetdb.io/api/v1/kmrvwd3n1r0m7', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ data: productosValidos })
+                        body: JSON.stringify({ data: productosParaEnviar })
                     });
 
                     if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
-                    procesados += productosValidos.length;
+                    procesados += productosParaEnviar.length;
 
-                    // Actualizar inventario local
-                    inventario.push(...productosValidos);
+                    // Actualizar inventario local y el set de códigos (evitar duplicados locales)
+                    for (const p of productosParaEnviar) {
+                        if (!codigosInventario.has(p.clave)) {
+                            inventario.push(p);
+                            codigosInventario.add(p.clave);
+                        }
+                    }
 
                 } catch (error) {
                     console.error('Error al agregar lote:', error);
-                    fallos.push(...productosValidos.map(p => ({
+                    fallos.push(...productosParaEnviar.map(p => ({
                         codigo: p.clave,
                         error: 'Error al guardar en base de datos'
                     })));
@@ -11383,9 +11465,10 @@ async function agregarNuevosProductosAlInventario(productos) {
         // Mostrar resumen
         const mensaje = `
             Proceso completado:
-            - Total productos nuevos: ${nuevos.length}
+            - Total productos nuevos detectados: ${nuevos.length}
             - Productos agregados: ${procesados}
             - Productos fallidos: ${fallos.length}
+            - Omitidos por coincidencia de descripción: ${omitidosPorDescripcion.length}
         `;
         
         console.log(mensaje);
@@ -11393,6 +11476,9 @@ async function agregarNuevosProductosAlInventario(productos) {
 
         if (fallos.length > 0) {
             console.log('Productos fallidos:', fallos);
+        }
+        if (omitidosPorDescripcion.length > 0) {
+            console.log('Productos omitidos por descripción existente (ejemplos):', omitidosPorDescripcion.slice(0,20));
         }
 
         return procesados;
