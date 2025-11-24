@@ -289,11 +289,11 @@
             min-height: 20px;
         }
         .msg.success { color: green; }
-        .msg.error { color: red; }
+        .msg.error { color: rgb(255, 0, 0); }
         /* Agregar dentro de la sección <style> existente */
         .alerta-flotante {
             position: fixed;
-            bottom: 20px;
+            bottom: 20px;     
             right: 20px;
             background: white;
             border: 2px solid #75c286;
@@ -390,8 +390,8 @@
         .table-sm td, .table-sm th {
             padding: 0.5rem;
         }
-    </style>
-</head>                        
+    </style>   
+</head>    
 <body>
 <!-- Modal instrucciones -->
 <div id="modalInstrucciones" class="modal">
@@ -1238,7 +1238,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <!-- Nueva sección de Unidades Disponibles -->
             <div class="accordion mb-4" id="acordeonUnidadesDisponibles">
                 <div class="accordion-item">
-                    <h2 class="accordion-header">
+                    <h2 class="accordion-header">   
                         <button class="accordion-button bg-primary text-white" 
                                 type="button" 
                                 data-bs-toggle="collapse" 
@@ -1249,8 +1249,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <i class="bi bi-truck me-2"></i>
                                 <span class="me-auto">Unidades Disponibles</span>
                             </div>
-                        </button>
-                    </h2>
+                        </button>   
+                    </h2>         
                     <div id="collapseUnidadesDisponibles" 
                          class="accordion-collapse collapse show" 
                          data-bs-parent="#acordeonUnidadesDisponibles">
@@ -1262,7 +1262,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                             <th>Unidad</th>
                                             <th>Económico</th>
                                             <th>Cap. Volumen</th>
-                                            <th>Cap. Peso</th>
+                                            <th>Cap. Peso</th>  
                                             <th>Uso Volumen</th>
                                             <th>Uso Peso</th>
                                             <th>Eficiencia</th>
@@ -1742,7 +1742,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         </div>
      </div>        
-       
+              
 
     <!-- Pedidos Apartados -->
     <div id="pedidos-Apartados" class="tabcontent" style="max-width: 1200px;">
@@ -1764,7 +1764,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </tr>
             </thead>
             <tbody></tbody>
-        </table>
+        </table>       
     </div>
   <!-- OCR PDF para traspasos -->
 <!-- Modernizado: OCR PDF para traspasos -->
@@ -1796,6 +1796,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             <iframe src="https://cubicaje-tres-siglos.github.io/ESCANEOTRASPASOS/"
                                     style="width:100%; height:800px; border:none; border-radius:8px;" 
                                     title="Escaneo de Traspasos"></iframe>
+                            <!-- Contenedor estático para los bloques de traspasos (evita creación dinámica y warnings) -->
+                            <div id="traspasosGroupsContainer" class="mt-3"></div>
                         </div>
                     </div>
                 
@@ -1829,6 +1831,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                </button>
                                <div id="log" class="alert alert-info mt-3" style="display:none;"></div>
                                <div id="extractedData"></div>
+                               <!-- Contenedor estático para las facturas especiales (formato acordeón) -->
+                               <h4 class="mt-4">Facturas guardadas</h4>
+                               <div id="facturaGroupsContainer_facturas" class="mt-3"></div>
                                <div id="escaneosGuardados" class="mt-4"></div>
                           </div>
                      </div>
@@ -1885,8 +1890,7 @@ function iniciarActualizacionesAutomaticas() {
     }, 120000); // 2 minutos
 }
 
-// Remover el código duplicado de event listeners de tablinks
-// Y mover este código al final del archivo
+
 document.addEventListener('DOMContentLoaded', () => {
     iniciarActualizacionesAutomaticas();
         
@@ -2112,7 +2116,7 @@ async function autocompletarBuscaBloques(inputId, dropdownId) {
     } catch (error) {
         console.error('Error en autocompletarBuscaBloques:', error);
     }
-}
+}  
 
 function mostrarDropdownBloques(dropdownId, inputId, coincidencias) {
     let dropdownDiv = document.getElementById(dropdownId);
@@ -2151,7 +2155,7 @@ function mostrarDropdownBloques(dropdownId, inputId, coincidencias) {
         }).join('');
     }
 
-    dropdownDiv.style.display = 'block';
+    dropdownDiv.style.display = 'block';  
 }
 
 function ocultarDropdownBloques(dropdownId) {
@@ -11844,22 +11848,11 @@ function eliminarArchivoEscaneado(idx) {
 function mostrarBloquestraspasos(filtro = '') {
     console.log('Mostrando bloques de traspasos, total:', bloquestraspasos?.length || 0);
     
+    // El contenedor debe existir estáticamente en el HTML (#traspasosNormales)
     let container = document.getElementById('traspasosGroupsContainer');
     if (!container) {
-        console.warn('⚠️ Contenedor `traspasosGroupsContainer ` no existe. Se creará dinámicamente para mostrar bloques.');
-        // Intentar agregar dentro de la pestaña específica de "Traspasos" si existe
-        // Priorizar el pane concreto `#traspasosNormales` (donde están los traspasos normales)
-        const parentTab = document.getElementById('traspasosNormales') || document.querySelector('.tab-pane#traspasosNormales') || document.getElementById('traspasos') || document.querySelector('.tabcontent#traspasos');
-        container = document.createElement('div');
-        container.id = 'traspasosGroupsContainer';
-        if (parentTab) {
-            parentTab.appendChild(container);
-            console.log('🔧 Se creó `traspasosGroupsContainer` dentro de la pestaña de traspasos.');
-        } else {
-            // No crear/adjuntar al body para evitar que aparezca en otras pestañas.
-            console.warn('⚠️ No se encontró la pestaña #traspasosNormales; no se creará `traspasosGroupsContainer` para evitar aparezca en otras pestañas.');
-            return; // Salir para evitar crear el contenedor en el body
-        }
+        console.error('❌ Error: Contenedor #traspasosGroupsContainer no encontrado en el DOM. Verifica que esté declarado en HTML.');
+        return;
     }
 
     // Limpiar el contenedor primero
@@ -11930,129 +11923,171 @@ function mostrarBloquestraspasos(filtro = '') {
         });
 }
 
-// Mostrar bloques de la hoja 'Facturas' en la pestaña Facturas
+// Mostrar bloques de la hoja 'Facturas' en la pestaña Facturas (en formato acordeón)
 function mostrarBloquesfacturas(filtro = '') {
-    console.log('Mostrando bloques de Facturas, total:', bloquesfacturas?.length || 0);
-
-    let containerFacturas = document.getElementById('facturaGroupsContainer_facturas');
-    if (!containerFacturas) {
-        const parentFacturas = document.getElementById('traspasosEspeciales') || document.querySelector('.tab-pane#traspasosEspeciales') || document.getElementById('facturas') || document.querySelector('.tab-pane#facturas');
-        console.log('mostrarBloquesfacturas: parentFacturas encontrado:', !!parentFacturas, parentFacturas && (parentFacturas.id || parentFacturas.className));
-        containerFacturas = document.createElement('div');
-        containerFacturas.id = 'facturaGroupsContainer_facturas';
-        if (parentFacturas) {
-            parentFacturas.appendChild(containerFacturas);
-            console.log('Se creó `facturaGroupsContainer_facturas` dentro de:', parentFacturas.id || parentFacturas.className);
-        } else {
-            // Evitar anexar al body para que los bloques de Facturas no aparezcan fuera de su pestaña
-            console.warn('mostrarBloquesfacturas: parentFacturas no encontrado; no se creará `facturaGroupsContainer_facturas` para evitar mostrar datos fuera de la pestaña Facturas.');
-            return;
-        }
-    } else {
-        console.log('mostrarBloquesfacturas: containerFacturas ya existe en DOM y su padre es:', containerFacturas.parentElement && (containerFacturas.parentElement.id || containerFacturas.parentElement.className));
-    }
-
-    containerFacturas.innerHTML = '';
-
-    if (!bloquesfacturas || bloquesfacturas.length === 0) {
-        containerFacturas.innerHTML = '<div class="alert alert-info">No hay facturas guardadas.</div>';
+    console.log('Mostrando bloques de facturas, total:', bloquesfacturas?.length || 0);
+    
+    // El contenedor debe existir estáticamente en el HTML (#traspasosEspeciales)
+    let container = document.getElementById('facturaGroupsContainer_facturas');
+    if (!container) {
+        console.error('❌ Error: Contenedor #facturaGroupsContainer_facturas no encontrado en el DOM.');
         return;
     }
 
+    // Limpiar el contenedor primero
+    container.innerHTML = '';
+
+    if (!bloquesfacturas || bloquesfacturas.length === 0) {
+        console.log('No hay bloques de facturas para mostrar');
+        container.innerHTML = '<div class="alert alert-info">No hay facturas guardadas.</div>';
+        return;
+    }
+
+    console.log('Bloques de facturas a mostrar:', bloquesfacturas);
+
+    // Eliminar duplicados basándose en el nombre del bloque
     const bloquesSinDuplicados = bloquesfacturas.reduce((acc, current) => {
-        const x = acc.find(item => item.nombre === current.nombre);
-        if (!x) acc.push(current);
+        const x = acc.find(item => normalizeKey(item.nombre) === normalizeKey(current.nombre));
+        if (!x) {
+            acc.push(current);
+        }
         return acc;
     }, []);
 
-    const bloquesFiltrados = bloquesSinDuplicados.filter(b => b.nombre.toLowerCase().includes(filtro.toLowerCase()));
+    // Mostrar bloques filtrados y sin duplicados en formato acordeón
+    const acordeonHTML = `
+        <div class="accordion" id="acordeonFacturas">
+            ${bloquesSinDuplicados
+                .filter(b => b.nombre.toLowerCase().includes(filtro.toLowerCase()))
+                .map((bloque, idx) => {
+                    const bloqueNormalizado = normalizeKey(bloque.nombre);
+                    return `
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="heading${idx}">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${idx}" aria-expanded="false" aria-controls="collapse${idx}">
+                                    <strong style="flex: 1;">${bloque.nombre}</strong>
+                                    <span class="badge bg-info">${bloque.datos?.length || 0} items</span>
+                                    <button class="btn btn-danger btn-sm" style="margin-left: 10px;" onclick="event.stopPropagation(); eliminarBloqueFactura(${idx})">
+                                        Eliminar
+                                    </button>
+                                </button>
+                            </h2>
+                            <div id="collapse${idx}" class="accordion-collapse collapse" aria-labelledby="heading${idx}" data-bs-parent="#acordeonFacturas">
+                                <div class="accordion-body">
+                                    <table class="table table-bordered table-sm">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Folio</th>
+                                                <th>Fecha</th>
+                                                <th>Usuario</th>
+                                                <th>Cantidad</th>
+                                                <th>Código</th>
+                                                <th>Descripción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${bloque.datos.map((f, itemIdx) => `
+                                                <tr>
+                                                    <td>${itemIdx === 0 ? (f.Folio || '') : ''}</td>
+                                                    <td>${itemIdx === 0 ? (f["Fecha de Emisión"] || '') : ''}</td>
+                                                    <td>${itemIdx === 0 ? (f.Usuario || '') : ''}</td>
+                                                    <td>${f.Cantidad || ''}</td>
+                                                    <td>${f.Código || ''}</td>
+                                                    <td>${f.Descripción || ''}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+        </div>
+    `;
 
-    bloquesFiltrados.forEach((bloque, idx) => {
-        const bloqueHTML = `
-            <div class="card mb-2" id="bloqueFactura_facturas_${idx}">
-                <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer;" onclick="toggleDetalleBloqueFacturas(${idx})">
-                    <strong>${bloque.nombre}</strong>
-                    <span class="toggle-icon">▼</span>
-                    <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); eliminarBloqueEspecial('${bloque.nombre}')">Eliminar bloque</button>
-                </div>
-                <div class="card-body collapse" id="detalleBloque_facturas_${idx}">
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Folio</th>
-                                <th>Fecha de Emisión</th>
-                                <th>Usuario</th>
-                                <th>Cantidad</th>
-                                <th>Código</th>
-                                <th>Descripción</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${bloque.datos.map((f, indexFila) => `
-                                <tr>
-                                    <td>${indexFila === 0 ? (f.Folio || f.folio || '') : ''}</td>
-                                    <td>${indexFila === 0 ? (f['Fecha de Emisión'] || f['fecha de emisión'] || '') : ''}</td>
-                                    <td>${indexFila === 0 ? (f.Usuario || f.usuario || '') : ''}</td>
-                                    <td>${f.Cantidad || ''}</td>
-                                    <td>${f.Código || f.Codigo || ''}</td>
-                                    <td>${f.Descripción || f.Descripcion || ''}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-        containerFacturas.innerHTML += bloqueHTML;
-    });
+    container.innerHTML = acordeonHTML;
 }
 
-// Toggle específico para facturas (IDs con sufijo _facturas)
-function toggleDetalleBloqueFacturas(idx) {
-    const detalle = document.getElementById(`detalleBloque_facturas_${idx}`);
-    if (!detalle) return;
-    const icon = detalle.parentElement.querySelector('.toggle-icon');
-    if (detalle.style.display === 'none' || !detalle.style.display) {
-        detalle.style.display = 'block';
-        if (icon) icon.textContent = '▲';
-    } else {
-        detalle.style.display = 'none';
-        if (icon) icon.textContent = '▼';
-    }
-}
-
-// Función para cargar/actualizar bloques desde la hoja 'Facturas'
+// Función para actualizar bloques de facturas desde SheetDB
 async function actualizarBloquesfacturas() {
     try {
         console.log('Iniciando actualización de bloques de facturas...');
+        
         const res = await fetch('https://sheetdb.io/api/v1/kmrvwd3n1r0m7?sheet=Facturas');
         if (!res.ok) throw new Error(`No se pudo cargar facturas. Status: ${res.status}`);
+        
         const facturas = await res.json();
         console.log('Datos recibidos de la hoja Facturas:', facturas);
 
         if (!Array.isArray(facturas) || facturas.length === 0) {
+            console.log('No hay facturas en la hoja. Mostrando datos locales en caché...');
             bloquesfacturas = [];
+            
+            // Mostrar datos locales en caché si la hoja está vacía
+            const localData = Object.keys(localStorage)
+                .filter(key => key.startsWith('factura_especial_'))
+                .map(key => {
+                    try {
+                        return JSON.parse(localStorage.getItem(key));
+                    } catch (e) {
+                        return null;
+                    }
+                })
+                .filter(item => item !== null);
+            
+            if (localData.length > 0) {
+                console.log('Mostrando datos locales en caché:', localData);
+                bloquesfacturas = localData.map(data => ({
+                    nombre: data.nombre || 'Sin nombre',
+                    datos: data.productos || data.datos || []
+                }));
+            }
+            
             mostrarBloquesfacturas();
-            return true;
+            return false;
         }
 
+        bloquesfacturas = [];
         let grupos = {};
+        
+        // Agrupar facturas por nombre normalizado (evita duplicados)
         facturas.forEach(f => {
-            if (!f) return;
-            const nombre = (f.Nombre || f.Folio || f.nombre || f.folio || 'Sin nombre').toString().trim();
-            grupos[nombre] = grupos[nombre] || [];
-            grupos[nombre].push(f);
+            const nombre = f.Nombre || f.nombre || 'Sin nombre';
+            const nombreNorm = normalizeKey(nombre);
+            if (!grupos[nombreNorm]) {
+                grupos[nombreNorm] = {
+                    nombre: nombre,
+                    datos: []
+                };
+            }
+            grupos[nombreNorm].datos.push(f);
         });
-
-        bloquesfacturas = Object.keys(grupos).map(nombre => ({ nombre, datos: grupos[nombre] }));
-        console.log('Bloques procesados (facturas):', bloquesfacturas);
+        
+        // Convertir grupos en bloques
+        for (const nombreNorm in grupos) {
+            bloquesfacturas.push(grupos[nombreNorm]);
+        }
+         
+        console.log('Bloques de facturas procesados:', bloquesfacturas);
+        
+        // Actualizar la visualización
         mostrarBloquesfacturas();
         return true;
     } catch (error) {
         console.error('Error actualizando bloques de facturas:', error);
+        console.error('Stack trace:', error.stack);
+        
+        const container = document.getElementById('facturaGroupsContainer_facturas');
+        if (container) {
+            container.innerHTML = `<div class="alert alert-danger">Error al cargar facturas: ${error.message}</div>`;
+        }
         return false;
     }
 }
+
+// Toggle específico para facturas (IDs con sufijo _facturas)
+
 
 async function actualizarBloquestraspasos() {
     try {
@@ -13173,6 +13208,105 @@ function buscarBloques() {
     `).join('');
 }
 
+async function eliminarFilasPorNombreYHoja(nombreBloqueRaw, sheetName = 'traspasos', opts = { useFilterFallback: true }) {
+    const useFilterFallback = Boolean(opts.useFilterFallback);
+    const result = { totalFound: 0, deleted: 0, failed: [] };
+
+    function normalizeStr(s) {
+        if (!s) return '';
+        try {
+            return s.toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+        } catch (e) {
+            return s.toString().toLowerCase().trim().replace(/\s+/g, ' ');
+        }
+    }
+
+    function extractNameFromRow(row) {
+        if (!row || typeof row !== 'object') return '';
+        const keys = Object.keys(row || {});
+        for (const k of keys) {
+            if (/nombre/i.test(k) || /folio/i.test(k)) {
+                const val = row[k];
+                if (val && val.toString().trim()) return val.toString();
+            }
+        }
+        return (row.Nombre || row.Folio || row.nombre || row.folio || '').toString();
+    }
+
+    try {
+        const res = await fetch(`https://sheetdb.io/api/v1/kmrvwd3n1r0m7?sheet=${encodeURIComponent(sheetName)}`);
+        if (!res.ok) throw new Error(`No se pudieron cargar las filas de ${sheetName} (status ${res.status})`);
+        const filas = await res.json();
+
+        const nombreNorm = normalizeStr(nombreBloqueRaw || '');
+        const matches = filas.filter(r => {
+            const candidate = extractNameFromRow(r);
+            const candNorm = normalizeStr(candidate);
+            return candNorm === nombreNorm || candNorm.includes(nombreNorm) || nombreNorm.includes(candNorm);
+        });
+
+        result.totalFound = matches.length;
+
+        if (matches.length === 0) return result;
+
+        for (const row of matches) {
+            const rowId = row.row_id || row.rowId || row.id || row.ID || null;
+            if (!rowId) {
+                result.failed.push({ row, reason: 'missing_row_id' });
+                continue;
+            }
+
+            let deleted = false;
+            let lastError = null;
+            for (let attempt = 1; attempt <= 3 && !deleted; attempt++) {
+                try {
+                    const delRes = await fetch(`https://sheetdb.io/api/v1/kmrvwd3n1r0m7/row_id/${rowId}?sheet=${encodeURIComponent(sheetName)}`, { method: 'DELETE' });
+                    if (delRes.ok) {
+                        deleted = true;
+                        result.deleted++;
+                        break;
+                    } else {
+                        const status = delRes.status;
+                        const body = await delRes.text().catch(() => '');
+                        lastError = `status:${status} body:${body}`;
+                        console.warn(`eliminarFilasPorNombreYHoja (${sheetName}) intento no ok`, { attempt, rowId, status, body });
+                    }
+                } catch (e) {
+                    lastError = e.message || String(e);
+                    console.warn(`eliminarFilasPorNombreYHoja (${sheetName}) intento fallo`, { attempt, rowId, err: lastError });
+                }
+                await new Promise(r => setTimeout(r, 200 * attempt));
+            }
+            if (!deleted) {
+                result.failed.push({ rowId, reason: lastError });
+            }
+        }
+
+        // Fallback: intento eliminar por filtro Nombre si hubieron fallos
+        if (useFilterFallback && result.failed.length > 0) {
+            try {
+                const filterUrl = `https://sheetdb.io/api/v1/kmrvwd3n1r0m7/Nombre/${encodeURIComponent(nombreBloqueRaw)}?sheet=${encodeURIComponent(sheetName)}`;
+                const fallbackRes = await fetch(filterUrl, { method: 'DELETE' });
+                if (fallbackRes.ok) {
+                    console.info(`eliminarFilasPorNombreYHoja (${sheetName}): fallback DELETE por Nombre tuvo éxito`);
+                    result.deleted += result.failed.length;
+                    result.failed = [];
+                } else {
+                    const txt = await fallbackRes.text().catch(() => '');
+                    console.warn(`eliminarFilasPorNombreYHoja (${sheetName}): fallback DELETE falló`, fallbackRes.status, txt);
+                }
+            } catch (fbErr) {
+                console.warn(`eliminarFilasPorNombreYHoja (${sheetName}): error en fallback DELETE`, fbErr);
+            }
+        }
+
+        return result;
+    } catch (e) {
+        console.error(`eliminarFilasPorNombreYHoja (${sheetName}) error general:`, e);
+        return result;
+    }
+}
+
 async function eliminarFilasTraspasosPorNombre(nombreBloqueRaw, opts = { useFilterFallback: true }) {
     const useFilterFallback = Boolean(opts.useFilterFallback);
     const result = { totalFound: 0, deleted: 0, failed: [] };
@@ -13275,9 +13409,13 @@ async function eliminarFilasTraspasosPorNombre(nombreBloqueRaw, opts = { useFilt
 
 // ...existing code...    
 // Buscar bloques por nombre
-async function eliminarBloqueFactura(idx) {
-    if (!confirm('¿Seguro que deseas eliminar este bloque de traspasos?')) return;
-    const bloque = bloquestraspasos[idx];
+async function eliminarBloqueFactura(idx, tipo = 'traspasos') {
+    // Determinar si es traspasos o facturas
+    const bloquesArray = tipo === 'facturas' ? bloquesfacturas : bloquestraspasos;
+    const sheetName = tipo === 'facturas' ? 'Facturas' : 'traspasos';
+    
+    if (!confirm(`¿Seguro que deseas eliminar este bloque de ${tipo}?`)) return;
+    const bloque = bloquesArray[idx];
     if (!bloque) return alert('Bloque no encontrado.');
 
     const nombreBloqueRaw = (bloque.nombre || bloque.Nombre || '').toString().trim();
@@ -13285,11 +13423,17 @@ async function eliminarBloqueFactura(idx) {
 
     // Llamar al helper para realizar la eliminación en la hoja
     try {
-        const resumen = await eliminarFilasTraspasosPorNombre(nombreBloqueRaw, { useFilterFallback: true });
+        const resumen = await eliminarFilasPorNombreYHoja(nombreBloqueRaw, sheetName, { useFilterFallback: true });
 
         // Eliminar localmente y refrescar vista
-        bloquestraspasos.splice(idx, 1);
-        try { await actualizarBloquestraspasos(); } catch (e) { console.warn('actualizarBloquestraspasos error:', e); }
+        bloquesArray.splice(idx, 1);
+        
+        // Refrescar según el tipo
+        if (tipo === 'facturas') {
+            try { await actualizarBloquesfacturas(); } catch (e) { console.warn('actualizarBloquesfacturas error:', e); }
+        } else {
+            try { await actualizarBloquestraspasos(); } catch (e) { console.warn('actualizarBloquestraspasos error:', e); }
+        }
 
         // Mostrar resumen al usuario
         const msg = `Registros encontrados: ${resumen.totalFound}. Eliminados: ${resumen.deleted}. Fallidos: ${resumen.failed.length}.`;
