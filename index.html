@@ -10527,14 +10527,17 @@ function renderPendingAsignaciones() {
                     // Si no se pudo actualizar por row_id, intentar por filtro Económico
                     if (!updated) {
                         try {
-                            const extra = `column=Económico&value=${encodeURIComponent(originalEcon)}`;
-                            const patchByEcon = await fetch(buildSheetdbUrl('camiones pendientes', extra), {
+                            const patchByEconUrl = `https://sheetdb.io/api/v1/et3sp6auabhw7/Económico/${encodeURIComponent(originalEcon)}?sheet=${encodeURIComponent('camiones pendientes')}`;
+                            const patchByEcon = await fetch(patchByEconUrl, {
                                 method: 'PATCH',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ data: dataToPatch })
                             });
                             if (patchByEcon.ok) {
                                 updated = true;
+                                console.log('✅ Actualizado por Económico:', originalEcon);
+                            } else {
+                                console.warn('⚠️ PATCH by Económico respondió status', patchByEcon.status, 'para', originalEcon);
                             }
                         } catch (e) {
                             console.warn('PATCH by Económico filter failed:', e);
