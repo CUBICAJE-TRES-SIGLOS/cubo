@@ -1824,7 +1824,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <!-- Contenedor estático para los bloques de traspasos (evita creación dinámica y warnings) -->
                             <div id="traspasosGroupsContainer" class="mt-3"></div>
                         </div>
-                    </div>
+                    </div> 
                 
                     <!-- Pestaña 2: Nuevo sistema -->
                     <!-- Pestaña 2: traspasos Especiales -->
@@ -3766,25 +3766,43 @@ async function actualizarTablaLlantasBloque(llantas) {
 
 // Funciones auxiliares para procesar cada tipo de bloque
 async function procesarBloquetraspasos(datos) {
+    console.log('🔵 [PROCESAMIENTO DE BLOQUE] Iniciando procesamiento...');
+    console.log('   Productos totales en datos:', datos.length);
+    console.log('   Datos:', datos);
+    
     let seAgregaron = false;
     const nuevosParaInventario = [];
+    let productosEnInventario = 0;
+    let productosEnPedidosActuales = 0;
+    let productosNuevos = 0;
+    let productosConActualizacionCantidad = 0;
 
-    for (const producto of datos) {
+    for (let idx = 0; idx < datos.length; idx++) {
+        const producto = datos[idx];
         const codigoProd = producto.Código?.toString?.() || producto.codigo?.toString?.() || '';
         const descripcionProd = (producto.Descripción || producto.Descripcion || producto.descripcion || '').toString();
         const cantidad = Number(producto.Cantidad) || 1;
 
+        console.log(`   [${idx + 1}/${datos.length}] Procesando: código="${codigoProd}", desc="${descripcionProd}", cantidad=${cantidad}`);
+
         const llanta = inventario.find(item => item.clave?.toString() === codigoProd);
         if (llanta) {
+            productosEnInventario++;
+            console.log(`      ✓ Encontrado en inventario. Clave: ${llanta.clave}`);
+            
             let pedidoExistente = pedidosEnCurso.find(p => p.clave === llanta.clave);
             if (pedidoExistente) {
                 // Actualizar cantidad existente
+                const cantidadAnterior = pedidoExistente.cantidad;
                 pedidoExistente.cantidad += cantidad;
                 pedidoExistente.peso = safeNum(getField(llanta,'peso')) * pedidoExistente.cantidad;
                 pedidoExistente.volumen = safeNum(getField(llanta,'volumen')) * pedidoExistente.cantidad;
                 pedidoExistente.valor = safeNum(getField(llanta,'valor')) * pedidoExistente.cantidad;
+                productosConActualizacionCantidad++;
+                console.log(`      ↗️ Actualizado cantidad en pedido: ${cantidadAnterior} → ${pedidoExistente.cantidad}`);
             } else {
                 // Agregar nueva llanta al pedido
+                productosEnPedidosActuales++;
                 pedidosEnCurso.push({
                     clave: llanta.clave,
                     descripcion: llanta.descripcion,
@@ -3794,12 +3812,16 @@ async function procesarBloquetraspasos(datos) {
                     volumen: safeNum(getField(llanta,'volumen')) * cantidad,
                     valor: safeNum(getField(llanta,'valor')) * cantidad
                 });
+                console.log(`      ✨ Agregado nuevo al pedido actual`);
             }
         } else {
             // Si la llanta no existe en inventario, agregar una entrada temporal al pedido
+            console.log(`      ⚠️ NO encontrado en inventario. Calculando volumen/peso...`);
             const volumenCalc = Number(await calcularVolumenLlanta(descripcionProd)) || 0;
             const pesoCalc = Number(await calcularPesoLlanta(descripcionProd)) || 0;
+            console.log(`      Valores calculados: volumen=${volumenCalc}, peso=${pesoCalc}`);
 
+            productosNuevos++;
             pedidosEnCurso.push({
                 clave: codigoProd || '',
                 descripcion: descripcionProd,
@@ -3809,6 +3831,7 @@ async function procesarBloquetraspasos(datos) {
                 volumen: volumenCalc * cantidad,
                 valor: 0
             });
+            console.log(`      ✨ Agregado temporal al pedido (sin inventario)`);
 
             // Preparar para agregar al inventario (si tiene código y descripción)
             if (codigoProd && descripcionProd) {
@@ -3821,12 +3844,23 @@ async function procesarBloquetraspasos(datos) {
         }
     }
 
+    console.log('🔵 [RESUMEN DE PROCESAMIENTO]');
+    console.log(`   Total procesados: ${datos.length}`);
+    console.log(`   - En inventario: ${productosEnInventario}`);
+    console.log(`   - Nuevos al pedido: ${productosEnPedidosActuales}`);
+    console.log(`   - Cantidad actualizada: ${productosConActualizacionCantidad}`);
+    console.log(`   - Sin inventario (temp): ${productosNuevos}`);
+    console.log(`   Productos agregados al pedido en curso: ${pedidosEnCurso.length} items`);
+    console.log('   Pedidos en curso:', pedidosEnCurso);
+
     // Intentar agregar los nuevos productos al inventario (evita duplicados internamente)
     if (nuevosParaInventario.length > 0) {
+        console.log(`🔵 Intentando agregar ${nuevosParaInventario.length} nuevos productos al inventario...`);
         try {
             await agregarNuevosProductosAlInventario(nuevosParaInventario);
+            console.log('✅ Productos nuevos agregados al inventario exitosamente');
         } catch (e) {
-            console.warn('No se pudieron agregar automáticamente los nuevos productos al inventario:', e);
+            console.warn('❌ No se pudieron agregar automáticamente los nuevos productos al inventario:', e);
         }
     }
 
