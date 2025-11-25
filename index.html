@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <!-- SweetAlert2 CSS -->
-     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
     <!-- SweetAlert2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
@@ -1792,7 +1792,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </table>       
     </div>
   <!-- OCR PDF para traspasos -->
-<!-- Modernizado: OCR PDF para traspasos -->
+<!-- Modernizado: OCR PDF para traspasos -->         
 <!-- Dentro del div id="traspasos" existente -->
 <div class="tabcontent" id="traspasos">
     <div class="container py-5">
@@ -10410,7 +10410,7 @@ function renderPendingAsignaciones() {
     cont.appendChild(select);
     cont.appendChild(detalle);
 
-    function renderDetalle(econ) {
+    async function renderDetalle(econ) {
         detalle.innerHTML = '';
         const pedidos = pendingAsignaciones[econ] || [];
         if (activePendingEconomico === econ) detalle.classList.add('active'); else detalle.classList.remove('active');
@@ -10442,13 +10442,61 @@ function renderPendingAsignaciones() {
         defaultOpt.textContent = '-- Cambiar unidad (flota) --';
         unitSelect.appendChild(defaultOpt);
 
-        (flota || []).forEach(c => {
+        // Calcular volumen/peso requerido por este conjunto de pedidos
+        let requiredVol = (pedidos || []).reduce((s, p) => s + safeNum(p.Volumen || p.volumen || 0), 0);
+        let requiredPeso = (pedidos || []).reduce((s, p) => s + safeNum(p.Peso || p.peso || 0), 0);
+
+        // Si no hay vol/peso cargados en los pedidos, intentar calcular desde descripciones
+        if ((requiredVol <= 0 || requiredPeso <= 0) && (pedidos || []).length > 0) {
             try {
-                const o = document.createElement('option');
-                o.value = String(c.economico || c.economico);
-                o.textContent = `${(c.unidad || c.unidad || '').toString()} — ${c.economico}`;
-                unitSelect.appendChild(o);
-            } catch (e) { /* ignore malformed flota entries */ }
+                for (const p of pedidos) {
+                    const qty = Number(p.Cantidad || p.cantidad || 1) || 1;
+                    if (!requiredVol || requiredVol <= 0) {
+                        const desc = p.Descripcion || p.Descripción || p.descripcion || '';
+                        const v = await calcularVolumenLlanta(desc || '');
+                        requiredVol += safeNum(v) * qty;
+                    }
+                    if (!requiredPeso || requiredPeso <= 0) {
+                        const desc = p.Descripcion || p.Descripción || p.descripcion || '';
+                        const w = await calcularPesoLlanta(desc || '');
+                        requiredPeso += safeNum(w) * qty;
+                    }
+                }
+            } catch (e) {
+                console.warn('No fue posible calcular vol/peso desde descripciones:', e);
+            }
+        }
+
+        // Obtener unidades de la flota con capacidades numéricas
+        const unidadesFlota = typeof obtenerUnidadesFlota === 'function' ? obtenerUnidadesFlota() : (flota || []);
+
+        // Filtrar unidades que pueden manejar esta carga (volumen y peso)
+        let candidatos = (unidadesFlota || []).filter(u => {
+            const capVol = safeNum(u.capacidadVolumen || u.capacidad || u.capVolumen || 0);
+            const capPeso = safeNum(u.capacidadPeso || u.capacidadPeso || u.capacidad || 0);
+            return capVol >= requiredVol && capPeso >= requiredPeso;
+        });
+
+        // Asegurar que la unidad actualmente asignada (econ) esté incluida
+        if (econ) {
+            const existeActual = candidatos.find(x => String(x.codigo || x.economico) === String(econ));
+            if (!existeActual) {
+                const encontrada = (unidadesFlota || []).find(u => String(u.codigo || u.economico) === String(econ));
+                if (encontrada) candidatos.unshift(encontrada);
+            }
+        }
+
+        // Si no hay candidatos (ninguna unidad cumple), mostrar todas para permitir reasignación manual
+        const listaMostrar = (candidatos && candidatos.length > 0) ? candidatos : (unidadesFlota || []);
+
+        (listaMostrar || []).forEach(u => {
+            try {
+                const opt = document.createElement('option');
+                opt.value = String(u.codigo || u.economico || u.codigo);
+                const nombre = (u.nombre || u.unidad || u.nombreUnidad || '').toString();
+                opt.textContent = `${nombre} — ${String(u.codigo || u.economico || '')}`;
+                unitSelect.appendChild(opt);
+            } catch (e) { /* ignore malformed */ }
         });
 
         // Intentar seleccionar la unidad actual si existe
@@ -13772,7 +13820,7 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
             divResultado.innerHTML = `
                 <div class="alert alert-success">
                     <i class="bi bi-check-circle"></i> 
-                    Se agregaron ${llantasParaAgregar.length} llantas al bloque. Total acumulado: ${llantasAcumuladasEnBloque.length} Partidas.
+                    Se agregaron ${llantasParaAgregar.length} llantas al bloque. Total acumulado: ${llantasAcumuladasEnBloque.length} partidas.
                 </div>`;
             document.getElementById('inputBusquedaBloqueNuevo').value = '';
         } else {
