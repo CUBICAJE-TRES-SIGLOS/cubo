@@ -660,7 +660,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </header>
 
-<nav>
+<nav>   
     <button class="tablink active" data-tab="inventario">Inventario</button>
     <button class="tablink" data-tab="flota">Flota</button>
     <button class="tablink" data-tab="traspasos" onclick="actualizarBloquestraspasos()">Escaneo de traspasos o traspasos</button> 
@@ -675,7 +675,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <h3>Pedidos Apartados</h3>
         <button class="btn btn-primary" onclick="generarPDFPedidosApartados()">
             <i class="bi bi-file-pdf-fill me-2"></i>Imprimir Reporte
-        </button>
+        </button>      
     </div>
     <div class="card">
         <div class="card-body">
@@ -704,7 +704,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <th>Descripción</th>
                             <th>Volumen</th>
                             <th>Peso</th>
-                            <th>Acciones</th>
+                            <th>Acciones</th>  
                         </tr>
                     </thead>
                     <tbody id="tablaPedidosApartados">
@@ -1347,7 +1347,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     let llantasPendientes = llantasNorm.map(l => ({
                         ...l,
                         cantidadPendiente: parseInt(l.cantidad || l.Cantidad || 1)
-                    }));
+                    }));  
 
                     while(volumenRestante > 0 && pesoRestante > 0) {
                         // Encontrar la mejor unidad que pueda llevar al menos el 30% de la carga restante
@@ -1355,11 +1355,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             !distribucion.find(d => d.economico === unidad.economico) &&
                             unidad.capacidadVolumen > 0 &&
                             unidad.capacidadPeso > 0
-                        );
+                        );  
 
                         if (unidadesValidas.length === 0) break;
 
-                        // Ordenar por eficiencia (menor diferencia entre capacidad y necesidad)
+                        // Ordenar por eficiencia (menor diferencia entre capacidad y necesidad)  
                         const mejorUnidad = unidadesValidas.sort((a, b) => {
                             const eficienciaA = Math.min(volumenRestante / a.capacidadVolumen, pesoRestante / a.capacidadPeso);
                             const eficienciaB = Math.min(volumenRestante / b.capacidadVolumen, pesoRestante / b.capacidadPeso);
@@ -1444,7 +1444,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     return distribucion;
                 }
-
+                
                 function actualizarTablaDistribucion(distribucion) {
                     const tbody = document.getElementById('tablaDistribucionSugerida');
                         // Obtener flota para construir listas de opciones por fila
@@ -1790,7 +1790,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </thead>
             <tbody></tbody>
         </table>       
-    </div>
+    </div>  
   <!-- OCR PDF para traspasos -->
 <!-- Modernizado: OCR PDF para traspasos -->         
 <!-- Dentro del div id="traspasos" existente -->
@@ -1804,14 +1804,14 @@ document.addEventListener('DOMContentLoaded', function() {
                    <li class="nav-item" role="presentation">
                        <button class="nav-link active" id="traspasos-normales-tab" data-bs-toggle="tab" data-bs-target="#traspasosNormales" type="button" role="tab">
                            Traspasos
-                       </button>
+                       </button>  F
                    </li>
                    <li class="nav-item" role="presentation">
                        <button class="nav-link" id="traspasos-especiales-tab" data-bs-toggle="tab" data-bs-target="#traspasosEspeciales" type="button" role="tab">
                            Facturas
-                       </button>
-                   </li>
-               </ul>                
+                       </button> 
+                   </li>   
+               </ul>                      
 
                 <!-- Contenido de las pestañas -->
                 <div class="tab-content">
@@ -1830,11 +1830,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     <!-- Pestaña 2: traspasos Especiales -->
                     <div class="tab-pane fade" id="traspasosEspeciales">
                         <div class="card shadow-lg border-0 rounded-4">
-                            <div class="card-body p-4">
-                                <h3>Escanea tus facturas para ser más ágil  el proceso</h3>
+                            <div class="card-body p-4">   
+                                <h3>Escanea tus facturas para ser más ágil  el proceso</h3>  
                                 <div class="mb-3">
                                     <input type="file" id="fileInput" accept="application/pdf" 
-                                           class="form-control" multiple>
+                                           class="form-control" multiple>  
                                 </div>
                                 <button onclick="processFiles()" class="btn btn-primary w-100 mb-3">
                                     Escanear PDFs
@@ -1892,8 +1892,8 @@ document.addEventListener('DOMContentLoaded', function() {
 function iniciarActualizacionesAutomaticas() {
     autoUpdateInterval = setInterval(async () => {
         const tabActiva = document.querySelector('.tablink.active')?.dataset.tab;
-        if (!tabActiva) return;
-        
+        if (!tabActiva) return;  
+          
         try {
             switch(tabActiva) {
                 case 'inventario':
@@ -1964,6 +1964,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
 function mostrarEstado(mensaje, tipo = 'info') {
     console.log(mensaje);
     const statusDiv = document.createElement('div');
@@ -4050,7 +4051,7 @@ function renderInventario() {
 async function calcularPesosInventario() {
     let filasActualizadas = [];
     let noCalculadas = [];
-    let filasFallidas = [];
+    let filasFallidas = [];   
 
     try {
         mostrarEstado('Iniciando cálculos de peso...');
@@ -9474,11 +9475,17 @@ function actualizarGraficas() {
         return;
     }
 
+    // Si estamos viendo un camión pendiente activo, usar sus items de pendingAsignaciones en lugar de pedidosEnCurso
+    let itemsAMostrar = pedidosEnCurso;
+    if (activePendingEconomico && pendingAsignaciones && pendingAsignaciones[activePendingEconomico]) {
+        itemsAMostrar = pendingAsignaciones[activePendingEconomico];
+    }
+
     // Calcular totales
-    let totalVolumen = pedidosEnCurso.reduce((acc, cur) => acc + (parseFloat(cur.volumen) || 0), 0);
-    let totalPeso = pedidosEnCurso.reduce((acc, cur) => acc + (parseFloat(cur.peso) || 0), 0);
-    let volTotal = parseFloat(pedidoCamion.volumen || 0);
-    let pesoTotal = parseFloat(pedidoCamion["capacidad de carga (kg)"] || pedidoCamion.carga || 0);
+    let totalVolumen = itemsAMostrar.reduce((acc, cur) => acc + (parseFloat(cur.volumen || cur.Volumen) || 0), 0);
+    let totalPeso = itemsAMostrar.reduce((acc, cur) => acc + (parseFloat(cur.peso || cur.Peso) || 0), 0);
+    let volTotal = parseFloat(pedidoCamion.volumen || pedidoCamion.capacidadVolumen || pedidoCamion['Cap. Volumen'] || 0);
+    let pesoTotal = parseFloat(pedidoCamion["capacidad de carga (kg)"] || pedidoCamion.capacidadPeso || pedidoCamion.carga || 0);
 
     // Calcular porcentajes
     let porcentajeVolumen = (totalVolumen / volTotal) * 100;
@@ -10908,34 +10915,37 @@ function renderPendingAsignaciones() {
 
     // inicial render
     renderDetalle(select.value);
-    select.addEventListener('change', () => {
-        renderDetalle(select.value);
+    select.addEventListener('change', async () => {
+        const nuevoEcon = select.value;
+        await renderDetalle(nuevoEcon);
         // Al cambiar la selección de camión pendiente, actualizar solo el número económico
         try {
-            const econ = select.value;
+            // Marcar este camión como "activo" para que las gráficas sepan de quién mostrar datos
+            activePendingEconomico = nuevoEcon;
+            
             const inputEco = document.getElementById('inputPedidoNumEconomico');
             if (inputEco) {
-                inputEco.value = econ;
+                inputEco.value = nuevoEcon;
                 inputEco.disabled = false; // permitir edición si el usuario quiere
             }
 
             // Buscar en la flota para obtener capacidades y nombre de unidad
-            const found = flota.find(f => String(f.economico) === String(econ));
+            const found = flota.find(f => String(f.economico) === String(nuevoEcon));
             if (found) {
                 // Reemplazar pedidoCamion sólo si encontramos la definición en la flota
                 pedidoCamion = found;
-                pedidoCamion.economico = econ;
+                pedidoCamion.economico = nuevoEcon;
             } else if (pedidoCamion) {
                 // Si ya existía un pedidoCamion, solo actualizar el número económico
-                pedidoCamion.economico = econ;
+                pedidoCamion.economico = nuevoEcon;
             } else {
                 // Si no había ninguno, crear un objeto temporal mínimo (no sobreescribe unidad existente)
-                pedidoCamion = { economico: econ, unidad: `Camión ${econ}`, volumen: 0, "capacidad de carga (kg)": 0 };
+                pedidoCamion = { economico: nuevoEcon, unidad: `Camión ${nuevoEcon}`, volumen: 0, "capacidad de carga (kg)": 0 };
             }
         } catch (e) {
             console.warn('Error al setear pedidoCamion desde selección pendiente:', e);
         }
-        // Actualizar gráficas principales para reflejar la selección
+        // Actualizar gráficas principales para reflejar la selección (ahora mostrará datos del camión seleccionado)
         try { actualizarGraficas(); } catch (e) { console.warn(e); }
     });
 }      
@@ -13769,6 +13779,7 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
 
     try {
         let llantasParaAgregar = [];
+        1
 
 
         // Buscar en todas las fuentes
@@ -13867,7 +13878,7 @@ async function generarPDFPedidosApartados() {
                     requestAnimationFrame(() => {
                         setTimeout(resolve, 50);
                     });
-                });
+                });      
             });
         }
 
@@ -13903,7 +13914,7 @@ async function generarPDFPedidosApartados() {
         title.style.marginBottom = '20px';
         title.style.textAlign = 'center';
         tempDiv.appendChild(title);
-
+        
         // Asegurar que todos los datos estén visibles
         const searchInput = document.querySelector('#pedidos-Apartados input[type="search"]');
         const originalSearchValue = searchInput ? searchInput.value : '';
@@ -13912,13 +13923,13 @@ async function generarPDFPedidosApartados() {
             // Forzar actualización de la tabla
             actualizarTablaPedidosApartados('');
         }
-
+        
         // Obtener la tabla original
         const originalTable = document.querySelector('#pedidos-Apartados table');
         if (!originalTable) {
             throw new Error('No se encontró la tabla de pedidos apartados');
         }
-
+        
         // Crear nueva tabla con solo las columnas deseadas
         const newTable = document.createElement('table');
         newTable.className = 'pdf-table';
