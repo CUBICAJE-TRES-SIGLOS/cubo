@@ -9600,23 +9600,35 @@ function mostrarAlertaCapacidad(espacioRestante, pesoRestante, pctVolumen, pctPe
         const linea = (pedido.linea || '').toUpperCase();
         let categoria;
 
-        // Determinar categoría usando patrones mejorados
-        if (desc.match(/AGRICOLA|TRACTOR|R-1|AGR/) || linea.includes('AGRICOLA')) {
-            categoria = 'AGRICOLA';
-        }
-        else if (desc.match(/CAMION|TRAILER|22\.5|24\.5|17\.5|19\.5/) || linea.includes('CAMION')) {
-            categoria = 'CAMION';
-        }
-        else if (desc.match(/OTR|INDUSTRIAL|L-[2-5]|E-[2-4]|25"|33"|35"|49"|SKS|CT85/) || linea.includes('OTR')) {
-            categoria = 'OTR/INDUSTRIAL';
-        }
-        else if (desc.match(/4X4|AT|MT|LT|SUV|PICKUP/) || linea.includes('4X4')) {
-            categoria = 'CAMIONETA/SUV';
-        }
-        else if (desc.match(/AUTO|R13|R14|R15|R16/) || linea.includes('AUTO')) {
+        // Heurísticas mejoradas y con límites de palabra para evitar falsos positivos.
+        // Patrones claros para llantas de pasajero (ej. 175/70 R14, 205/55 R16)
+        const passengerPattern = /\b\d{2,3}\/\d{2}\s*R\d{2}\b|\bR\d{2}\b/;
+        // Palabras clave explícitas para agrícola
+        const agrPattern = /\b(AGRICOLA|TRACTOR|R-1|R1|AGR[IÍ]COLA?)\b/;
+        // Palabras/medidas típicas de camión
+        const truckPattern = /\b(CAMION|TRAILER|22\.5|24\.5|17\.5|19\.5|11R|\d{2,3}R22\.5|295\/80|315\/80)\b/;
+        // OTR / industrial
+        const otrPattern = /\b(OTR|INDUSTRIAL|L-[2-5]|E-[2-4]|25"|33"|35"|49"|SKS|CT85)\b/;
+        // SUV / pickup / all-terrain
+        const suvPattern = /\b(4X4|\bAT\b|\bMT\b|\bLT\b|SUV|PICKUP)\b/;
+        // Palabras explícitas para auto
+        const autoPattern = /\b(AUTO|COCHE|CAR|PASSENGER)\b/;
+
+        // Priorizar detección de llantas de pasajero basadas en el patrón de medida,
+        // siempre y cuando no aparezcan indicadores fuertes de agrícola/camión/OTR.
+        if (passengerPattern.test(desc) && !agrPattern.test(desc) && !truckPattern.test(desc) && !otrPattern.test(desc)) {
             categoria = 'AUTO';
-        }
-        else {
+        } else if (agrPattern.test(desc) || linea.includes('AGRICOLA')) {
+            categoria = 'AGRICOLA';
+        } else if (truckPattern.test(desc) || linea.includes('CAMION')) {
+            categoria = 'CAMION';
+        } else if (otrPattern.test(desc) || linea.includes('OTR')) {
+            categoria = 'OTR/INDUSTRIAL';
+        } else if (suvPattern.test(desc) || linea.includes('4X4')) {
+            categoria = 'CAMIONETA/SUV';
+        } else if (autoPattern.test(desc) || linea.includes('AUTO')) {
+            categoria = 'AUTO';
+        } else {
             categoria = 'OTROS';
         }
 
