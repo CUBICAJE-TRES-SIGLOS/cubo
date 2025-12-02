@@ -4657,7 +4657,7 @@ async function calcularVolumenInventario() {
                 let factorCorreccion, margenLogisticoTipo, volumen_m3;
                 if (tipoLlanta === 'AGRICOLA') {
                     factorCorreccion = desc.includes('L-') ? 1.0 : 1.0;
-                    margenLogisticoTipo = 1.020;
+                    margenLogisticoTipo = 1.040;
                     let alturaFlanco = medidas.perfil * medidas.ancho;
                     let diametroExterno = (medidas.rin + 2 * alturaFlanco) * 1.10;
                     volumen_m3 = Math.PI * Math.pow(diametroExterno/2, 2) * medidas.ancho * factorCorreccion * margenLogisticoTipo;
@@ -4666,7 +4666,7 @@ async function calcularVolumenInventario() {
                     }
                 } else if (tipoLlanta === 'INDUSTRIAL') {
                     factorCorreccion = desc.includes('SKS') ? 0.80 : 0.80;
-                    margenLogisticoTipo = 1.60;
+                    margenLogisticoTipo = 1.50;
                     let alturaFlanco = medidas.perfil * medidas.ancho;
                     let diametroExterno = (medidas.rin + 2 * alturaFlanco) * 1.09;
                     volumen_m3 = Math.PI * Math.pow(diametroExterno/2, 2) * medidas.ancho * factorCorreccion * margenLogisticoTipo;
@@ -4677,21 +4677,21 @@ async function calcularVolumenInventario() {
                         volumen_m3 *= (1 + (medidas.capas - 12) * 0.02);
                     }
                 } else if (tipoLlanta === 'CAMION') {
-                    factorCorreccion = 1.10;
-                    margenLogisticoTipo = 1.10;
+                    factorCorreccion = 1.20;
+                    margenLogisticoTipo = 1.20;
                     let alturaFlanco = medidas.perfil * medidas.ancho;
                     let diametroExterno = medidas.rin + 2 * alturaFlanco;
                     volumen_m3 = Math.PI * Math.pow(diametroExterno/2, 2) * medidas.ancho * factorCorreccion * margenLogisticoTipo;
                 } else if (tipoLlanta === '4X4') {
-                    factorCorreccion = 1.35;
-                    margenLogisticoTipo = 1.12;
+                    factorCorreccion = 1.45;
+                    margenLogisticoTipo = 1.22;
                     let alturaFlanco = medidas.perfil * medidas.ancho;
                     let diametroExterno = medidas.rin + 2 * alturaFlanco;
                     volumen_m3 = Math.PI * Math.pow(diametroExterno/2, 2) * medidas.ancho * factorCorreccion * margenLogisticoTipo;
                 } else {
                     // AUTO y otros
-                    factorCorreccion = 0.60;
-                    margenLogisticoTipo = 0.80;
+                    factorCorreccion = 1.10;
+                    margenLogisticoTipo = 1.10;
                     let alturaFlanco = medidas.perfil * medidas.ancho;
                     let diametroExterno = medidas.rin + 2 * alturaFlanco;
                     volumen_m3 = Math.PI * Math.pow(diametroExterno/2, 2) * medidas.ancho * factorCorreccion * margenLogisticoTipo;
