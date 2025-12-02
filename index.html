@@ -1326,7 +1326,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             peso: Number(peso)
                         });
                     }
-
+ 
                     // Calcular totales usando llantas normalizadas
                     let volumenTotal = llantasNorm.reduce((sum, llanta) => sum + ((parseFloat(llanta.volumen) || 0) * (parseInt(llanta.cantidad) || 1)), 0);
                     let pesoTotal = llantasNorm.reduce((sum, llanta) => sum + ((parseFloat(llanta.peso) || 0) * (parseInt(llanta.cantidad) || 1)), 0);
@@ -1354,7 +1354,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const unidadesValidas = unidadesDisponibles.filter(unidad => 
                             !distribucion.find(d => d.economico === unidad.economico) &&
                             unidad.capacidadVolumen > 0 &&
-                            unidad.capacidadPeso > 0
+                            unidad.capacidadPeso > 0     
                         );  
 
                         if (unidadesValidas.length === 0) break;
@@ -1372,8 +1372,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         const proporcionCarga = Math.min(
                             volumenAsignable / volumenRestante,
                             pesoAsignable / pesoRestante
-                        );
-                        
+                        ); 
+                              
                         const llantasAsignadas = Math.ceil(llantasRestantes * proporcionCarga);
                         const volumenAsignado = volumenRestante * proporcionCarga;
                         const pesoAsignado = pesoRestante * proporcionCarga;
@@ -1444,20 +1444,310 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     return distribucion;
                 }
+
+                // Nueva función: Recalcular distribución completa cuando cambia una unidad
+                async function recalcularDistribucionCompleta(distribucion, unidadesFlota, options = {}) {
+                    console.log('🔄 Recalculando distribución completa...', options);
+                    
+                    // Calcular totales de llantas disponibles
+                    const llantasOriginales = llantasAcumuladasEnBloque || [];
+                    if (llantasOriginales.length === 0) {
+                        console.warn('No hay llantas para redistribuir');
+                        return distribucion;
+                    }
+
+                    // Calcular volumen y peso total disponible
+                    let volumenTotal = 0;
+                    let pesoTotal = 0;
+                    let llantasTotal = 0;
+
+                    llantasOriginales.forEach(llanta => {
+                        const cant = parseInt(llanta.Cantidad || llanta.cantidad || 1, 10);
+                        const vol = parseFloat(llanta.volumenUnitario || llanta.Volumen || 0) || 0;
+                        const peso = parseFloat(llanta.pesoUnitario || llanta.Peso || 0) || 0;
+                        
+                        volumenTotal += vol * cant;
+                        pesoTotal += peso * cant;
+                        llantasTotal += cant;
+                    });
+
+                    console.log('📊 Totales disponibles:', {
+                        volumen: volumenTotal.toFixed(3),
+                        peso: pesoTotal.toFixed(2),
+                        llantas: llantasTotal
+                    });
+
+                    // Crear copia de llantas disponibles para ir restando
+                    let llantasDisponibles = llantasOriginales.map(l => ({
+                        ...l,
+                        cantidadPendiente: parseInt(l.Cantidad || l.cantidad || 1, 10),
+                        volumenUnitario: (l.volumenUnitario || l.Volumen || l.Volumen_m3 || l['Volumen (m3)']) || 0,
+                        pesoUnitario: (l.pesoUnitario || l.Peso || l['Peso (kg)'] || l.peso) || 0
+                    }));
+
+                    // Calcular vol/peso unitario faltante usando funciones auxiliares si existen
+                    for (let ll of llantasDisponibles) {
+                        try {
+                            if ((!ll.volumenUnitario || ll.volumenUnitario === 0) && typeof calcularVolumenLlanta === 'function') {
+                                const v = await calcularVolumenLlanta(ll.descripcion || ll.Descripcion || ll.Descripción || '');
+                                ll.volumenUnitario = (v && !isNaN(v)) ? Number(v) : (ll.volumenUnitario || 0);
+                            }
+                        } catch (e) {
+                            console.warn('Error calculando volumen unitario para', ll, e);
+                        }
+                        try {
+                            if ((!ll.pesoUnitario || ll.pesoUnitario === 0) && typeof calcularPesoLlanta === 'function') {
+                                const p = await calcularPesoLlanta(ll.descripcion || ll.Descripcion || ll.Descripción || '');
+                                ll.pesoUnitario = (p && !isNaN(p)) ? Number(p) : (ll.pesoUnitario || 0);
+                            }
+                        } catch (e) {
+                            console.warn('Error calculando peso unitario para', ll, e);
+                        }
+                    }
+
+                    // Recalcular distribución con las nuevas capacidades de las unidades en distribucion[]
+                    let distribucionNueva = [];
+                    let volumenRestante = volumenTotal;
+                    let pesoRestante = pesoTotal;
+                    let llantasRestantes = llantasTotal;
+
+                    // Si se pasó una unidad prioritaria, intentar llenarla primero (greedy)
+                    const prioridad = options.prioritizeEconomico || null;
+                    const unidadesAsignadasSet = new Set();
+                    if (prioridad) {
+                        const unidadPrior = unidadesFlota.find(u => String(u.codigo) === String(prioridad));
+                        if (unidadPrior) {
+                            console.log('🎯 Prioridad detectada, intentando llenar unidad:', prioridad, unidadPrior);
+                            const capVol = parseFloat(unidadPrior.capacidadVolumen) || 0;
+                            const capPeso = parseFloat(unidadPrior.capacidadPeso) || 0;
+
+                            let usedVol = 0;
+                            let usedPeso = 0;
+                            let piezasAsignadasTotal = 0;
+                            let descripcionesAsignadas = [];
+                            let llantasAsignadasArray = [];
+
+                            // Recorrer las llantas disponibles y asignar tantas como quepan
+                            for (const llanta of llantasDisponibles) {
+                                if (llanta.cantidadPendiente <= 0) continue;
+
+                                const volUnit = parseFloat(llanta.volumenUnitario || llanta.Volumen || 0) || 0;
+                                const pesoUnit = parseFloat(llanta.pesoUnitario || llanta.Peso || 0) || 0;
+                                const cantidadDisponible = llanta.cantidadPendiente || 0;
+
+                                // Calcular cuántas de esta descripción caben según volumen/peso restante
+                                let maxByVol = volUnit > 0 ? Math.floor((capVol - usedVol) / volUnit) : cantidadDisponible;
+                                let maxByPeso = pesoUnit > 0 ? Math.floor((capPeso - usedPeso) / pesoUnit) : cantidadDisponible;
+                                if (maxByVol < 0) maxByVol = 0;
+                                if (maxByPeso < 0) maxByPeso = 0;
+
+                                let tomar = Math.min(cantidadDisponible, Math.max(0, Math.min(maxByVol || cantidadDisponible, maxByPeso || cantidadDisponible)));
+
+                                // Si tanto volUnit como pesoUnit son cero, asignar lo posible
+                                if ((volUnit === 0 && pesoUnit === 0) && tomar === 0) {
+                                    tomar = Math.min(cantidadDisponible, llantasRestantes);
+                                }
+
+                                if (tomar <= 0) continue;
+
+                                descripcionesAsignadas.push(`${tomar}x ${llanta.Descripción || llanta.descripcion || ''}`);
+                                llantasAsignadasArray.push({ cantidad: tomar, descripcion: llanta.Descripción || llanta.descripcion || '', volUnitario: volUnit, pesoUnitario: pesoUnit });
+
+                                usedVol += volUnit * tomar;
+                                usedPeso += pesoUnit * tomar;
+                                piezasAsignadasTotal += tomar;
+
+                                // Reducir pendiente
+                                llanta.cantidadPendiente = Math.max(0, llanta.cantidadPendiente - tomar);
+                                llantasRestantes = Math.max(0, llantasRestantes - tomar);
+                                volumenRestante = Math.max(0, volumenRestante - (volUnit * tomar));
+                                pesoRestante = Math.max(0, pesoRestante - (pesoUnit * tomar));
+
+                                if (llantasRestantes <= 0) break;
+                                if (usedVol >= capVol && usedPeso >= capPeso) break;
+                            }
+
+                            if (piezasAsignadasTotal > 0) {
+                                const eficienciaVol = capVol > 0 ? (usedVol / capVol) * 100 : 0;
+                                const eficienciaPeso = capPeso > 0 ? (usedPeso / capPeso) * 100 : 0;
+                                const eficiencia = (eficienciaVol + eficienciaPeso) / 2;
+
+                                distribucionNueva.push({
+                                    unidad: unidadPrior.nombre || unidadPrior.unidad || '',
+                                    economico: unidadPrior.codigo || unidadPrior.economico || '',
+                                    llantasEstimadas: piezasAsignadasTotal,
+                                    volumen: usedVol,
+                                    peso: usedPeso,
+                                    eficiencia: eficiencia,
+                                    descripciones: descripcionesAsignadas.join('\n'),
+                                    llantas: llantasAsignadasArray
+                                });
+
+                                unidadesAsignadasSet.add(String(unidadPrior.codigo || unidadPrior.economico || ''));
+                                console.log('✅ Prioridad asignada:', unidadPrior.codigo, 'piezas:', piezasAsignadasTotal, 'vol:', usedVol.toFixed(3), 'peso:', usedPeso.toFixed(2));
+                            } else {
+                                console.log('⚠️ No se pudieron asignar piezas a la unidad prioritaria (capacidad 0 o vol/peso cero)');
+                            }
+                        } else {
+                            console.warn('Unidad prioritaria no encontrada en flota:', prioridad);
+                        }
+                    }
+
+                    // Calcular capacidades totales de las unidades listadas en 'distribucion'
+                    let unidadesProcesar = distribucion.map(item => unidadesFlota.find(u => String(u.codigo) === String(item.economico))).filter(Boolean);
+                    let totalCapVol = unidadesProcesar.reduce((s, u) => s + (parseFloat(u.capacidadVolumen) || 0), 0);
+                    let totalCapPeso = unidadesProcesar.reduce((s, u) => s + (parseFloat(u.capacidadPeso) || 0), 0);
+
+                    // Crear lista de unidades a procesar: si hay prioridad, ponerla al inicio,
+                    // luego ordenar el resto por capacidad de volumen descendente (para aprovechar unidades grandes)
+                    const unidadesMap = (distribucion || []).map(item => ({ item }));
+                    let ordenProcesamiento = [];
+
+                    if (prioridad) {
+                        // Buscar el item correspondiente en distribucion (si no fue ya asignada por la fase greedy)
+                        const idxPrior = distribucion.findIndex(d => String(d.economico) === String(prioridad));
+                        if (idxPrior >= 0) {
+                            const codigoPrior = String(distribucion[idxPrior].economico || '');
+                            if (!unidadesAsignadasSet.has(codigoPrior)) {
+                                ordenProcesamiento.push(distribucion[idxPrior]);
+                            }
+                        }
+                    }
+
+                    // Añadir el resto (sin duplicar la prioritaria), ordenados por capacidadVol desc
+                    const restantes = distribucion.filter(d => !ordenProcesamiento.find(op => String(op.economico) === String(d.economico)) && !unidadesAsignadasSet.has(String(d.economico)));
+                    const restantesConCap = restantes.map(d => ({
+                        d,
+                        unidadObj: unidadesFlota.find(u => String(u.codigo) === String(d.economico))
+                    }));
+
+                    restantesConCap.sort((a, b) => {
+                        const capA = parseFloat((a.unidadObj && a.unidadObj.capacidadVolumen) || 0);
+                        const capB = parseFloat((b.unidadObj && b.unidadObj.capacidadVolumen) || 0);
+                        return capB - capA;
+                    });
+
+                    for (const r of restantesConCap) ordenProcesamiento.push(r.d);
+
+                    // Procesar en el orden decidido
+                    for (const item of ordenProcesamiento) {
+                        if (llantasRestantes <= 0) break;
+
+                        const unidadActual = unidadesFlota.find(u => String(u.codigo) === String(item.economico));
+                        if (!unidadActual) continue;
+
+                        const capVol = parseFloat(unidadActual.capacidadVolumen) || 0;
+                        const capPeso = parseFloat(unidadActual.capacidadPeso) || 0;
+
+                        // Evitar división por cero
+                        const divisorVol = totalCapVol > 0 ? totalCapVol : capVol || 1;
+                        const divisorPeso = totalCapPeso > 0 ? totalCapPeso : capPeso || 1;
+
+                        // Estimar cuántas llantas asignar en proporción a la capacidad de la unidad frente al total
+                        let llantasCapacidadVol = Math.max(0, Math.round((capVol / divisorVol) * llantasRestantes));
+                        let llantasCapacidadPeso = Math.max(0, Math.round((capPeso / divisorPeso) * llantasRestantes));
+                        let llantasAsignadas = Math.min(llantasRestantes, Math.max(llantasCapacidadVol, llantasCapacidadPeso));
+
+                        // Garantizar al menos 1 si la unidad tiene capacidad y aún quedan llantas
+                        if (llantasAsignadas <= 0 && (capVol > 0 || capPeso > 0) && llantasRestantes > 0) {
+                            llantasAsignadas = Math.min(1, llantasRestantes);
+                        }
+
+                        if (llantasAsignadas <= 0) {
+                            // Restar la capacidad de esta unidad del total para próximas iteraciones
+                            totalCapVol -= capVol; totalCapPeso -= capPeso;
+                            continue;
+                        }
+
+                        // Calcular eficiencia estimada usando capacidad frente a asignación
+                        const volumenAsignadoEstimado = (volumenTotal > 0) ? (volumenTotal * (llantasAsignadas / llantasTotal)) : 0;
+                        const pesoAsignadoEstimado = (pesoTotal > 0) ? (pesoTotal * (llantasAsignadas / llantasTotal)) : 0;
+                        const eficienciaVol = capVol > 0 ? (volumenAsignadoEstimado / capVol) * 100 : 0;
+                        const eficienciaPeso = capPeso > 0 ? (pesoAsignadoEstimado / capPeso) * 100 : 0;
+                        const eficiencia = (eficienciaVol + eficienciaPeso) / 2;
+
+                        // Distribuir llantas a esta unidad conforme a llantasAsignadas
+                        let descripcionesAsignadas = [];
+                        let llantasAsignadasArray = [];
+                        let llantasDistribuidas = 0;
+                        let volumenReal = 0;
+                        let pesoReal = 0;
+
+                        for (const llanta of llantasDisponibles) {
+                            const cantidadPendiente = llanta.cantidadPendiente || 0;
+                            if (cantidadPendiente <= 0 || llantasDistribuidas >= llantasAsignadas) continue;
+
+                            const cantidadTomar = Math.min(cantidadPendiente, llantasAsignadas - llantasDistribuidas);
+                            if (cantidadTomar <= 0) continue;
+
+                            const volUnitario = parseFloat(llanta.volumenUnitario || llanta.Volumen || 0) || 0;
+                            const pesoUnitario = parseFloat(llanta.pesoUnitario || llanta.Peso || 0) || 0;
+
+                            descripcionesAsignadas.push(`${cantidadTomar}x ${llanta.Descripción || llanta.descripcion || ''}`);
+                            llantasAsignadasArray.push({ cantidad: cantidadTomar, descripcion: llanta.Descripción || llanta.descripcion || '', volUnitario, pesoUnitario });
+
+                            volumenReal += volUnitario * cantidadTomar;
+                            pesoReal += pesoUnitario * cantidadTomar;
+
+                            llanta.cantidadPendiente = Math.max(0, cantidadPendiente - cantidadTomar);
+                            llantasDistribuidas += cantidadTomar;
+                        }
+
+                        if (llantasDistribuidas > 0) {
+                            distribucionNueva.push({
+                                unidad: item.unidad,
+                                economico: item.economico,
+                                llantasEstimadas: llantasDistribuidas,
+                                volumen: volumenReal,
+                                peso: pesoReal,
+                                eficiencia: eficiencia,
+                                descripciones: descripcionesAsignadas.join('\n'),
+                                llantas: llantasAsignadasArray
+                            });
+
+                            volumenRestante -= volumenReal;
+                            pesoRestante -= pesoReal;
+                            llantasRestantes -= llantasDistribuidas;
+
+                            // Restar capacidades usadas del total para próximas iteraciones
+                            totalCapVol -= capVol; totalCapPeso -= capPeso;
+                            console.log('✅ Distribuida a', item.economico, ':', llantasDistribuidas, 'llantas');
+                        } else {
+                            totalCapVol -= capVol; totalCapPeso -= capPeso;
+                        }
+                    }
+
+                    console.log('🔄 Distribución recalculada:', distribucionNueva);
+                    return distribucionNueva;
+                }
+
+                // Actualiza los totales (volumen/peso) mostrados en la UI
+                function actualizarTotalesDistribucion(distribucion) {
+                    try {
+                        const totalVol = (distribucion || []).reduce((s, d) => s + (parseFloat(d.volumen) || 0), 0);
+                        const totalPeso = (distribucion || []).reduce((s, d) => s + (parseFloat(d.peso) || 0), 0);
+                        const elVol = document.getElementById('totalVolumenLlantas');
+                        const elPeso = document.getElementById('totalPesoLlantas');
+                        if (elVol) elVol.textContent = totalVol.toFixed(2);
+                        if (elPeso) elPeso.textContent = totalPeso.toFixed(2);
+                        console.log('Totales actualizados:', { totalVol, totalPeso });
+                    } catch (e) {
+                        console.warn('Error actualizando totales de distribución', e);
+                    }
+                }
                 
                 function actualizarTablaDistribucion(distribucion) {
                     const tbody = document.getElementById('tablaDistribucionSugerida');
-                        // Obtener flota para construir listas de opciones por fila
-                        const unidadesFlota = typeof obtenerUnidadesFlota === 'function' ? obtenerUnidadesFlota() : [];
+                    const unidadesFlota = typeof obtenerUnidadesFlota === 'function' ? obtenerUnidadesFlota() : [];
 
-                        tbody.innerHTML = distribucion.map((item, idx) => {
+                    // Filtrar solo las filas que tienen llantas asignadas (no vacías)
+                    const distribucionValida = distribucion.filter(item => (item.llantasEstimadas || 0) > 0);
+
+                    tbody.innerHTML = distribucionValida.map((item, idx) => {
                         // Obtener las descripciones de las llantas
-                        const detallesLlantas = item.llantas ? 
-                            item.llantas.map(llanta => 
-                                `${llanta.cantidad}x ${llanta.descripcion}`
-                            ).join('<br>') : 
-                            item.detalleLlantas ? item.detalleLlantas.split('\n').join('<br>') :
-                            item.descripciones ? item.descripciones.split('\n').join('<br>') : '';
+                        const detallesLlantas = item.descripciones ? 
+                            item.descripciones.split('\n').join('<br>') : 
+                            'Sin descripciones';
                         
                         // Agregar estilos para mejor presentación
                         const estiloDescripciones = `
@@ -1473,13 +1763,18 @@ document.addEventListener('DOMContentLoaded', function() {
                             return capVol >= (parseFloat(item.volumen) || 0) && capPeso >= (parseFloat(item.peso) || 0);
                         });
 
-                        // Asegurar que la unidad actualmente asignada esté en la lista (aunque no cumpla filtro)
+                        // Asegurar que la unidad actualmente asignada esté en la lista
                         let presente = candidatos.find(u => String(u.codigo) === String(item.economico));
                         if (!presente) {
                             const encontrada = unidadesFlota.find(u => String(u.codigo) === String(item.economico));
                             if (encontrada) candidatos.unshift(encontrada);
                             else if (item.economico || item.unidad) {
-                                candidatos.unshift({ codigo: item.economico || '', nombre: item.unidad || (item.unidad || 'Sin unidad'), capacidadVolumen: 0, capacidadPeso: 0 });
+                                candidatos.unshift({ 
+                                    codigo: item.economico || '', 
+                                    nombre: item.unidad || 'Sin unidad', 
+                                    capacidadVolumen: 0, 
+                                    capacidadPeso: 0 
+                                });
                             }
                         }
 
@@ -1497,8 +1792,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                     </select>
                                 </td>
                                 <td>${item.economico || 'N/A'}</td>
-                                <td class="text-center">${item.llantasEstimadas || 0}</td>
-                                <td style="${estiloDescripciones}">${detallesLlantas || 'Sin descripciones'}</td>
+                                <td class="text-center"><strong>${item.llantasEstimadas || 0}</strong></td>
+                                <td style="${estiloDescripciones}">${detallesLlantas}</td>
                                 <td class="text-end">${(item.volumen || 0).toFixed(2)} m³</td>
                                 <td class="text-end">${(item.peso || 0).toFixed(2)} kg</td>
                                 <td class="text-center">${(item.eficiencia || 0).toFixed(1)}%</td>
@@ -1506,38 +1801,55 @@ document.addEventListener('DOMContentLoaded', function() {
                         `;
                     }).join('');
                     
-                        // Actualizar los datos en el botón de apartar
-                        const botonApartar = document.querySelector('#botonesDistribucionMultiple button');
-                        if (botonApartar) {
-                            botonApartar.dataset.unidades = JSON.stringify(distribucion);
-                        }
+                    // Actualizar los datos en el botón de apartar (usar solo distribucionValida)
+                    const botonApartar = document.querySelector('#botonesDistribucionMultiple button');
+                    if (botonApartar) {
+                        botonApartar.dataset.unidades = JSON.stringify(distribucionValida);
+                    }
 
-                        // Agregar manejadores para los selects que permiten cambiar la unidad sugerida por fila
-                        setTimeout(() => {
-                            const selects = tbody.querySelectorAll('.select-unidad');
-                            selects.forEach(select => {
-                                select.removeEventListener('change', select._changeHandler || (() => {}));
-                                const handler = function (e) {
-                                    const idx = parseInt(this.dataset.idx, 10);
-                                    const nuevoEconomico = this.value;
-                                    // Buscar unidad en la flota
-                                    const unidad = (typeof obtenerUnidadesFlota === 'function' ? obtenerUnidadesFlota() : []).find(u => String(u.codigo) === String(nuevoEconomico));
-                                    if (distribucion[idx]) {
-                                        distribucion[idx].economico = nuevoEconomico;
-                                        distribucion[idx].unidad = unidad ? unidad.nombre : distribucion[idx].unidad;
-                                    }
-                                    // Actualizar la celda de económico en la fila
-                                    const tr = this.closest('tr');
-                                    if (tr && tr.cells && tr.cells.length > 1) {
-                                        tr.cells[1].textContent = nuevoEconomico;
-                                    }
-                                    // Actualizar dataset del botón
-                                    if (botonApartar) botonApartar.dataset.unidades = JSON.stringify(distribucion);
-                                };
-                                select._changeHandler = handler;
-                                select.addEventListener('change', handler);
-                            });
-                        }, 50);
+                    // Actualizar totales generales tras renderizar la tabla
+                    try { actualizarTotalesDistribucion(distribucion); } catch(e) { console.warn(e); }
+
+                    // Agregar manejadores para los selects
+                    setTimeout(() => {
+                        const selects = tbody.querySelectorAll('.select-unidad');
+                        selects.forEach(select => {
+                            select.removeEventListener('change', select._changeHandler || (() => {}));
+                            const handler = async function (e) {
+                                const nuevoEconomico = this.value;
+                                const unidadesFlota = typeof obtenerUnidadesFlota === 'function' ? obtenerUnidadesFlota() : [];
+                                
+                                // Encontrar qué item corresponde a este select (comparar económico actual)
+                                const filaTR = this.closest('tr');
+                                const cellEconomico = filaTR.cells[1].textContent;
+                                const itemActual = distribucionValida.find(item => String(item.economico) === String(cellEconomico));
+                                
+                                if (itemActual) {
+                                    const unidadNueva = unidadesFlota.find(u => String(u.codigo) === String(nuevoEconomico));
+                                    itemActual.economico = nuevoEconomico;
+                                    itemActual.unidad = unidadNueva ? unidadNueva.nombre : itemActual.unidad;
+                                }
+
+                                // Recalcular distribución completa (ahora async)
+                                console.log('📦 Cambio de unidad detectado. Recalculando...');
+                                const distribucionRecalculada = await recalcularDistribucionCompleta(distribucion, unidadesFlota, { prioritizeEconomico: nuevoEconomico });
+                                
+                                // Actualizar array global
+                                distribucion.length = 0;
+                                distribucion.push(...distribucionRecalculada);
+
+                                // Redibujar tabla
+                                actualizarTablaDistribucion(distribucion);
+
+                                // Actualizar totales visibles
+                                try { actualizarTotalesDistribucion(distribucion); } catch(e){ console.warn(e); }
+
+                                console.log('✅ Tabla actualizada');
+                            };
+                            select._changeHandler = handler;
+                            select.addEventListener('change', handler);
+                        });
+                    }, 50);
 
                         // Decidir si se muestra la sección de Distribución Sugerida.
                         // Regla: mostrar sólo si se requieren múltiples unidades o
@@ -1556,7 +1868,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                 return capVol >= totalVolumen && capPeso >= totalPeso;
                             });
 
-                            const mostrar = (Array.isArray(distribucion) && distribucion.length > 1) || !unidadApta;
+                            // Mostrar sólo si NO existe una unidad capaz de llevar toda la carga.
+                            // Evita abrir el acordeón cuando la distribución se divide por otra razón.
+                            const mostrar = (!unidadApta) && ((totalVolumen || 0) > 0 || (totalPeso || 0) > 0);
                             const acordeon = document.getElementById('collapseDistribucionMultiple');
                             if (acordeon) {
                                 if (mostrar) acordeon.classList.add('show');
@@ -1784,7 +2098,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <th>Volumen</th>
                     <th>Peso</th>
                     <th>Valor ($)</th>
-                    <th>Fecha</th>
+                    <th>Fecha</th> 
                     <th>Acción</th>
                 </tr>
             </thead>
@@ -3667,71 +3981,69 @@ async function actualizarTablaLlantasBloque(llantas) {
     let totalPeso = 0;
     let totalValor = 0;
 
-    // Agrupar llantas por código
+    // Agrupar llantas por código. No depender exclusivamente del inventario: usar datos del objeto llanta o calcular valores si faltan.
     const llantasAgrupadas = {};
-    llantas.forEach(llanta => {
-        // Obtener los datos correctos de la estructura de traspasos
-        const codigo = llanta.Código || llanta.codigo || 'Sin código';
-        const descripcion = llanta.Descripción || llanta.descripcion || 'Sin descripción';
-        
-        // Buscar la información de la llanta en el inventario por código
-        const llantaInventario = inventario.find(item => 
-            item.ID === codigo || 
-            item.clave === codigo || 
-            item.Código === codigo
-        );
-        
+    for (const llanta of llantas) {
+        const codigo = (llanta.Código || llanta.codigo || llanta.clave || '').toString() || 'Sin código';
+        const descripcion = llanta.Descripción || llanta.descripcion || llanta.Descripcion || 'Sin descripción';
+        const cantidad = parseInt(llanta.Cantidad || llanta.cantidad || llanta.Cantidad || 1, 10) || 1;
+
+        // Buscar en inventario si existe
+        const llantaInventario = inventario.find(item => item.ID === codigo || item.clave === codigo || item.Código === codigo);
         if (!llantaInventario) {
-            console.warn(`No se encontró la llanta con código ${codigo} en el inventario`);
-            return; // No agregar llantas que no existen en inventario
+            console.warn(`No se encontró la llanta con código ${codigo} en el inventario; se usarán valores aportados o calculados.`);
         }
 
-        const linea = llantaInventario.Linea || llantaInventario.linea || llanta.Linea || '';
-        const cantidad = parseInt(llanta.Cantidad || llanta.cantidad || 1);
-        
-        // Obtener valores del inventario
-        const volumenUnitario = parseFloat(llantaInventario.Volumen || llantaInventario.volumen);
-        const pesoUnitario = parseFloat(llantaInventario.Peso || llantaInventario.peso);
-        const valorUnitario = parseFloat(llantaInventario.Valor || llantaInventario.valor || 0);
+        // Intentar leer volumen/peso/valor desde la entrada del bloque (prioridad) -> luego inventario -> valores calculados
+        let volumenUnitario = parseFloat(llanta['Volumen unitario'] || llanta['Volumen'] || llanta.Volumen || llanta.volumen || (llantaInventario && (llantaInventario.Volumen || llantaInventario.volumen)) || 0) || 0;
+        let pesoUnitario = parseFloat(llanta['Peso unitario'] || llanta['Peso'] || llanta.Peso || llanta.peso || (llantaInventario && (llantaInventario.Peso || llantaInventario.peso)) || 0) || 0;
+        let valorUnitario = parseFloat(llanta['Valor unitario'] || llanta['Valor'] || llanta.Valor || llanta.valor || (llantaInventario && (llantaInventario.Valor || llantaInventario.valor)) || 0) || 0;
 
-        // Verificar si tenemos todos los datos necesarios
-        if (isNaN(volumenUnitario) || isNaN(pesoUnitario)) {
-            console.error(`Datos incompletos para la llanta ${codigo}:`, {
-                volumen: volumenUnitario,
-                peso: pesoUnitario
-            });
-            return; // No agregar llantas sin datos completos
+        // Si faltan, intentar calcular heurísticamente (no abortar)
+        try {
+            if ((!volumenUnitario || volumenUnitario === 0) && typeof calcularVolumenLlanta === 'function') {
+                const v = await calcularVolumenLlanta(descripcion || '');
+                volumenUnitario = (v && !isNaN(v)) ? Number(v) : volumenUnitario;
+            }
+        } catch (e) {
+            console.warn('Error calculando volumen para', codigo, e);
+        }
+        try {
+            if ((!pesoUnitario || pesoUnitario === 0) && typeof calcularPesoLlanta === 'function') {
+                const p = await calcularPesoLlanta(descripcion || '');
+                pesoUnitario = (p && !isNaN(p)) ? Number(p) : pesoUnitario;
+            }
+        } catch (e) {
+            console.warn('Error calculando peso para', codigo, e);
         }
 
-        const volumen = volumenUnitario * cantidad;
-        const peso = pesoUnitario * cantidad;
-        const valor = valorUnitario * cantidad;
+        // No abortar si siguen siendo cero; incluir la fila con ceros en totales parciales
+        const volumen = (isNaN(volumenUnitario) ? 0 : volumenUnitario) * cantidad;
+        const peso = (isNaN(pesoUnitario) ? 0 : pesoUnitario) * cantidad;
+        const valor = (isNaN(valorUnitario) ? 0 : valorUnitario) * cantidad;
 
-        // Usar el código como clave única
         if (!llantasAgrupadas[codigo]) {
             llantasAgrupadas[codigo] = {
                 codigo: codigo,
                 descripcion: descripcion,
-                linea: linea,
+                linea: (llantaInventario && (llantaInventario.Linea || llantaInventario.linea)) || llanta.Linea || llanta.linea || '',
                 cantidad: 0,
                 volTotal: 0,
                 pesoTotal: 0,
                 valorTotal: 0
             };
         }
-        
-        // Acumular cantidades y totales
+
         llantasAgrupadas[codigo].cantidad += cantidad;
         llantasAgrupadas[codigo].volTotal += volumen;
         llantasAgrupadas[codigo].pesoTotal += peso;
         llantasAgrupadas[codigo].valorTotal += valor;
 
-        // Actualizar totales generales
         totalCantidad += cantidad;
         totalVolumen += volumen;
         totalPeso += peso;
         totalValor += valor;
-    });
+    }
 
     // Agregar filas a la tabla
     Object.values(llantasAgrupadas).forEach(datos => {
@@ -4665,7 +4977,7 @@ async function calcularVolumenInventario() {
                         volumen_m3 *= (1 + (medidas.capas - 12) * 0.025);
                     }
                 } else if (tipoLlanta === 'INDUSTRIAL') {
-                    factorCorreccion = desc.includes('SKS') ? 0.80 : 0.80;
+                    factorCorreccion = desc.includes('SKS') ? 1.10 : 1.10;
                     margenLogisticoTipo = 1.50;
                     let alturaFlanco = medidas.perfil * medidas.ancho;
                     let diametroExterno = (medidas.rin + 2 * alturaFlanco) * 1.09;
