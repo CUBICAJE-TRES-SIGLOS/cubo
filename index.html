@@ -4494,25 +4494,25 @@ async function calcularPesosInventario() {
                             const base = (ancho * perfil/100 * rin/25.4) * 0.2;
                             // Ajustar por tipo de uso
                             let factor = 1.0;  
-                            if (desc.includes('SUV') || desc.includes('CAMIONETA')) factor *= 1.00;
-                            if (desc.includes('PERFOR')) factor *= 1.00;
-                            if (desc.includes('AGATE')) factor *= 1.00;
+                            if (desc.includes('SUV') || desc.includes('CAMIONETA')) factor *= 0.90;
+                            if (desc.includes('PERFOR')) factor *= 0.90;
+                            if (desc.includes('AGATE')) factor *= 0.90;
                             if (desc.includes('BLACKHAWK')) factor *= 1.00;
-                            if (desc.includes('EFFICIENT')) factor *= 1.00;
-                            if (desc.includes('ANTARES')) factor *= 1.00;
+                            if (desc.includes('EFFICIENT')) factor *= 0.90;
+                            if (desc.includes('ANTARES')) factor *= 0.90;
                             if (desc.includes('ATLAS')) factor *= 1.00;
-                            if (desc.includes('CACHLAND')) factor *= 1.00;
-                            if (desc.includes('DOUBLEKING')) factor *= 1.00;
-                            if (desc.includes('FRONWAY')) factor *= 1.00;
-                            if (desc.includes('KAPSEN')) factor *= 1.00;
-                            if (desc.includes('LINGLONG')) factor *= 1.00;
-                            if (desc.includes('MAXTREK')) factor *= 1.00;
-                            if (desc.includes('MIRAGE')) factor *= 1.00;
-                            if (desc.includes('SAFERICH')) factor *= 1.00;
-                            if (desc.includes('SAILUN')) factor *= 1.00;
-                            if (desc.includes('AT') || desc.includes('ALL TERRAIN')) factor *= 1.00;
-                            if (desc.includes('MT') || desc.includes('MUD TERRAIN')) factor *= 1.00;
-                            if (desc.includes('SPORT') || desc.includes('RACING')) factor *= 1.00;
+                            if (desc.includes('CACHLAND')) factor *= 0.90;
+                            if (desc.includes('DOUBLEKING')) factor *= 0.90;
+                            if (desc.includes('FRONWAY')) factor *= 0.90;
+                            if (desc.includes('KAPSEN')) factor *= 0.90;
+                            if (desc.includes('LINGLONG')) factor *= 0.90;
+                            if (desc.includes('MAXTREK')) factor *= 0.90;
+                            if (desc.includes('MIRAGE')) factor *= 0.90;
+                            if (desc.includes('SAFERICH')) factor *= 0.90;
+                            if (desc.includes('SAILUN')) factor *= 0.90;
+                            if (desc.includes('AT') || desc.includes('ALL TERRAIN')) factor *= 0.90;
+                            if (desc.includes('MT') || desc.includes('MUD TERRAIN')) factor *= 0.90;
+                            if (desc.includes('SPORT') || desc.includes('RACING')) factor *= 0.90;
                             return { 
                                 peso: base * factor,
                                 tipo: desc.includes('SUV') || desc.includes('CAMIONETA') ? 'SUV' : 'AUTO'
@@ -4526,13 +4526,13 @@ async function calcularPesosInventario() {
                         calc: (m, desc = '') => {
                             const ancho = Number(m[1]) * 25.4; // Convertir pulgadas a mm
                             const rin = Number(m[2]);
-                            const base = (ancho * 0.8 * rin/25.4) * 0.45;
+                            const base = (ancho * 0.8 * rin/25.4) * 0.39;
                             // Ajustes por uso
                             let factor = 1.50;
-                            if (desc.includes('TRACCION')) factor *= 1.50;
+                            if (desc.includes('TRACCION')) factor *= 0.90;
                             if (desc.includes('DIRECCION')) factor *= 0.90;
-                            if (desc.includes('MIXTA')) factor *= 1.20;
-                            if (desc.includes('MINERA')) factor *= 0.70;
+                            if (desc.includes('MIXTA')) factor *= 0.90;
+                            if (desc.includes('MINERA')) factor *= 0.50;
                             return { 
                                 peso: base * factor,
                                 tipo: 'CAMION'
@@ -4569,22 +4569,61 @@ async function calcularPesosInventario() {
                         }
                     },
 
+                    // 3.5 Llantas simple "ANCHO RIN" (ej: 215 R14, 225 R15) - formato directo mm sin perfil
+                    {
+                        regex: /^(\d{3})[\s\/]R(\d{2})(?:\s|$)/i,
+                        calc: (m, desc = '') => {
+                            // Formato: 215 R14 -> m[1]=215 (ancho en mm), m[2]=14 (rin en pulgadas)
+                            const anchoMm = Number(m[1]);
+                            const rin = Number(m[2]);
+                            
+                            // Asumir perfil estándar (65-70%) si no se indica
+                            // base ~ (ancho_mm * rin_mm * coeficiente) 
+                            // Para 215 R14 (típico auto): 215 * 14 * 0.055 ~ 165 (peso realista ~18 kg)
+                            const base = (anchoMm * rin) * 0.055;
+                            
+                            let factor = 1.0;
+                            // Ajustes por marca/tipo
+                            if (desc.includes('DOUBLEKING') || desc.includes('DK228')) factor *= 0.95;  // Marca económica
+                            if (desc.includes('MICHELIN') || desc.includes('PIRELLI') || desc.includes('CONTINENTAL')) factor *= 1.15;  // Premium
+                            if (desc.includes('SPORT') || desc.includes('RACING')) factor *= 1.10;
+                            if (desc.includes('ECO') || desc.includes('ECONOMY')) factor *= 0.90;
+                            
+                            // Índice de carga (ej: "110/108R" -> extrae 110)
+                            const cargaMatch = desc.match(/(\d{3})\/(\d{3})R/);
+                            if (cargaMatch) {
+                                const indice = Number(cargaMatch[1]);
+                                if (indice > 100) factor *= 1.08; // Ligeramente más pesadas
+                            }
+                            
+                            return { peso: base * factor, tipo: 'AUTO' };
+                        }
+                    },
+
                     // 4. Llantas MT/AT (Todo Terreno) con formato XXXYY.ZZ RWW
                     {
-                        regex: /^(\d{2,3})[Xx](\d{2}\.?\d*)[\s-]?R(\d{2})/i,
+                        regex: /^(\d{2,3})[Xx](\d{1,2}\.?\d*)[\s-]?R(\d{2})/i,
                         calc: (m, desc = '') => {
-                            const ancho = Number(m[1]);
-                            const perfil = Number(m[2]);
+                            // Formato tipo "27X8.50 R14" -> m[1]=27 (diámetro en in), m[2]=8.50 (ancho en in), m[3]=14 (rin)
+                            const diamIn = Number(m[1]);
+                            const anchoIn = Number(m[2]);
                             const rin = Number(m[3]);
-                            const base = (ancho * perfil/100 * rin/25.4) * 0.3;
-                            let factor = 0.50;  // Factor base para todo terreno
-                            
-                            // Ajustes adicionales por tipo específico
-                            if (desc.includes('MT') || desc.includes('MUD TERRAIN')) factor *= 0.50;
-                            if (desc.includes('AT') || desc.includes('ALL TERRAIN')) factor *= 0.50;
-                            if (desc.includes('HEAVY DUTY') || desc.includes('HD')) factor *= 0.50;
-                            if (desc.includes('REFORZADA') || desc.includes('REINFORCED')) factor *= 0.50;
-                            
+
+                            // Convertir ancho a mm
+                            const anchoMm = anchoIn * 25.4;
+
+                            // Estimación basada en sección (ancho) y rin: producir un peso razonable
+                            // base ~ (ancho_mm * (rin_inches)) * coeficiente
+                            // coeficiente ajustado para que 27x8.50 R14 quede en rango realista (~15-25 kg)
+                            const base = (anchoMm * (rin / 25.4)) * 0.45;
+
+                            let factor = 1.0;
+                            // Ajustes por descripción (mantener compatibilidad con flags AT/MT/HD)
+                            if (desc.includes('MT') || desc.includes('MUD TERRAIN')) factor *= 1.15;
+                            if (desc.includes('AT') || desc.includes('ALL TERRAIN')) factor *= 1.05;
+                            if (desc.includes('HEAVY DUTY') || desc.includes('HD')) factor *= 1.30;
+                            if (desc.includes('REFORZADA') || desc.includes('REINFORCED')) factor *= 1.25;
+
                             return { peso: base * factor, tipo: 'TODO_TERRENO' };
                         }
                     },
