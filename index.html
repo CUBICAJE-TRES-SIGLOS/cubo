@@ -587,6 +587,40 @@ async function inicializarAplicacion() {
     }
 }
 
+// Utilidades numéricas globales (definidas temprano para evitar errores de referencia)
+function parseNumber(input) {
+    if (input === null || input === undefined) return 0;
+    if (typeof input === 'number') return isNaN(input) ? 0 : input;
+    let s = String(input).trim();
+    if (s === '') return 0;
+    s = s.replace(/\$/g, '').replace(/\s+/g, '');
+    if (s.indexOf(',') > -1 && s.indexOf('.') > -1) {
+        s = s.replace(/,/g, '');
+    } else if (s.indexOf(',') > -1 && s.indexOf('.') === -1) {
+        s = s.replace(/,/g, '.');
+    }
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+}
+
+function formatNumber(value, decimals = 2) {
+    const opts = { minimumFractionDigits: decimals, maximumFractionDigits: decimals };
+    try {
+        return new Intl.NumberFormat('es-MX', opts).format(Number(value) || 0);
+    } catch (e) {
+        return (Number(value) || 0).toFixed(decimals).replace('.', ',');
+    }
+}
+
+function getNumericTotal(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return 0;
+    if (el.dataset && el.dataset.value !== undefined) {
+        return parseNumber(el.dataset.value);
+    }
+    return parseNumber(el.textContent || el.innerText || '0');
+}
+
 // App Initialization
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize app core
@@ -1292,7 +1326,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const cantidad = parseInt(ll.cantidad || ll.Cantidad || ll.CantidadLL || ll.CANTIDAD || 1) || 1;
 
                         // Intentar leer volumen desde distintos campos
-                        let volumen = parseFloat(ll.volumen || ll.Volumen || ll.VOLUMEN || ll['Volumen (m3)'] || ll['volumen_m3']);
+                        let volumen = parseNumber(ll.volumen || ll.Volumen || ll.VOLUMEN || ll['Volumen (m3)'] || ll['volumen_m3']);
                         if (!volumen || isNaN(volumen) || volumen <= 0) {
                             try {
                                 const desc = ll.descripcion || ll.Descripcion || ll.Descripción || ll.descripcionLlanta || '';
@@ -1306,7 +1340,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (!volumen || isNaN(volumen) || volumen <= 0) volumen = 0.021;
 
                         // Intentar leer peso desde distintos campos
-                        let peso = parseFloat(ll.peso || ll.Peso || ll.PESO || ll['Peso (kg)'] || ll['peso_kg']);
+                        let peso = parseNumber(ll.peso || ll.Peso || ll.PESO || ll['Peso (kg)'] || ll['peso_kg']);
                         if (!peso || isNaN(peso) || peso <= 0) {
                             try {
                                 const desc = ll.descripcion || ll.Descripcion || ll.Descripción || ll.descripcionLlanta || '';
@@ -1328,8 +1362,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
  
                     // Calcular totales usando llantas normalizadas
-                    let volumenTotal = llantasNorm.reduce((sum, llanta) => sum + ((parseFloat(llanta.volumen) || 0) * (parseInt(llanta.cantidad) || 1)), 0);
-                    let pesoTotal = llantasNorm.reduce((sum, llanta) => sum + ((parseFloat(llanta.peso) || 0) * (parseInt(llanta.cantidad) || 1)), 0);
+                    let volumenTotal = llantasNorm.reduce((sum, llanta) => sum + ((parseNumber(llanta.volumen) || 0) * (parseInt(llanta.cantidad) || 1)), 0);
+                    let pesoTotal = llantasNorm.reduce((sum, llanta) => sum + ((parseNumber(llanta.peso) || 0) * (parseInt(llanta.cantidad) || 1)), 0);
                     let llantasTotal = llantasNorm.reduce((sum, llanta) => sum + (parseInt(llanta.cantidad) || 1), 0);
 
                     console.log('Totales calculados (normalizados):', { volumenTotal, pesoTotal, llantasTotal });
@@ -1463,8 +1497,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     llantasOriginales.forEach(llanta => {
                         const cant = parseInt(llanta.Cantidad || llanta.cantidad || 1, 10);
-                        const vol = parseFloat(llanta.volumenUnitario || llanta.Volumen || 0) || 0;
-                        const peso = parseFloat(llanta.pesoUnitario || llanta.Peso || 0) || 0;
+                        const vol = parseNumber(llanta.volumenUnitario || llanta.Volumen || 0) || 0;
+                        const peso = parseNumber(llanta.pesoUnitario || llanta.Peso || 0) || 0;
                         
                         volumenTotal += vol * cant;
                         pesoTotal += peso * cant;
@@ -1518,8 +1552,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         const unidadPrior = unidadesFlota.find(u => String(u.codigo) === String(prioridad));
                         if (unidadPrior) {
                             console.log('🎯 Prioridad detectada, intentando llenar unidad:', prioridad, unidadPrior);
-                            const capVol = parseFloat(unidadPrior.capacidadVolumen) || 0;
-                            const capPeso = parseFloat(unidadPrior.capacidadPeso) || 0;
+                            const capVol = parseNumber(unidadPrior.capacidadVolumen) || 0;
+                            const capPeso = parseNumber(unidadPrior.capacidadPeso) || 0;
 
                             let usedVol = 0;
                             let usedPeso = 0;
@@ -1531,8 +1565,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             for (const llanta of llantasDisponibles) {
                                 if (llanta.cantidadPendiente <= 0) continue;
 
-                                const volUnit = parseFloat(llanta.volumenUnitario || llanta.Volumen || 0) || 0;
-                                const pesoUnit = parseFloat(llanta.pesoUnitario || llanta.Peso || 0) || 0;
+                                const volUnit = parseNumber(llanta.volumenUnitario || llanta.Volumen || 0) || 0;
+                                const pesoUnit = parseNumber(llanta.pesoUnitario || llanta.Peso || 0) || 0;
                                 const cantidadDisponible = llanta.cantidadPendiente || 0;
 
                                 // Calcular cuántas de esta descripción caben según volumen/peso restante
@@ -1595,8 +1629,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Calcular capacidades totales de las unidades listadas en 'distribucion'
                     let unidadesProcesar = distribucion.map(item => unidadesFlota.find(u => String(u.codigo) === String(item.economico))).filter(Boolean);
-                    let totalCapVol = unidadesProcesar.reduce((s, u) => s + (parseFloat(u.capacidadVolumen) || 0), 0);
-                    let totalCapPeso = unidadesProcesar.reduce((s, u) => s + (parseFloat(u.capacidadPeso) || 0), 0);
+                    let totalCapVol = unidadesProcesar.reduce((s, u) => s + (parseNumber(u.capacidadVolumen) || 0), 0);
+                    let totalCapPeso = unidadesProcesar.reduce((s, u) => s + (parseNumber(u.capacidadPeso) || 0), 0);
 
                     // Crear lista de unidades a procesar: si hay prioridad, ponerla al inicio,
                     // luego ordenar el resto por capacidad de volumen descendente (para aprovechar unidades grandes)
@@ -1622,8 +1656,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     }));
 
                     restantesConCap.sort((a, b) => {
-                        const capA = parseFloat((a.unidadObj && a.unidadObj.capacidadVolumen) || 0);
-                        const capB = parseFloat((b.unidadObj && b.unidadObj.capacidadVolumen) || 0);
+                        const capA = parseNumber((a.unidadObj && a.unidadObj.capacidadVolumen) || 0);
+                        const capB = parseNumber((b.unidadObj && b.unidadObj.capacidadVolumen) || 0);
                         return capB - capA;
                     });
 
@@ -1636,8 +1670,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         const unidadActual = unidadesFlota.find(u => String(u.codigo) === String(item.economico));
                         if (!unidadActual) continue;
 
-                        const capVol = parseFloat(unidadActual.capacidadVolumen) || 0;
-                        const capPeso = parseFloat(unidadActual.capacidadPeso) || 0;
+                        const capVol = parseNumber(unidadActual.capacidadVolumen) || 0;
+                        const capPeso = parseNumber(unidadActual.capacidadPeso) || 0;
 
                         // Evitar división por cero
                         const divisorVol = totalCapVol > 0 ? totalCapVol : capVol || 1;
@@ -1680,8 +1714,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             const cantidadTomar = Math.min(cantidadPendiente, llantasAsignadas - llantasDistribuidas);
                             if (cantidadTomar <= 0) continue;
 
-                            const volUnitario = parseFloat(llanta.volumenUnitario || llanta.Volumen || 0) || 0;
-                            const pesoUnitario = parseFloat(llanta.pesoUnitario || llanta.Peso || 0) || 0;
+                            const volUnitario = parseNumber(llanta.volumenUnitario || llanta.Volumen || 0) || 0;
+                            const pesoUnitario = parseNumber(llanta.pesoUnitario || llanta.Peso || 0) || 0;
 
                             descripcionesAsignadas.push(`${cantidadTomar}x ${llanta.Descripción || llanta.descripcion || ''}`);
                             llantasAsignadasArray.push({ cantidad: cantidadTomar, descripcion: llanta.Descripción || llanta.descripcion || '', volUnitario, pesoUnitario });
@@ -1724,13 +1758,37 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Actualiza los totales (volumen/peso) mostrados en la UI
                 function actualizarTotalesDistribucion(distribucion) {
                     try {
-                        const totalVol = (distribucion || []).reduce((s, d) => s + (parseFloat(d.volumen) || 0), 0);
-                        const totalPeso = (distribucion || []).reduce((s, d) => s + (parseFloat(d.peso) || 0), 0);
+                        // Si la tabla de llantas del bloque está visible y tiene filas,
+                        // preferimos calcular los totales directamente desde las filas
+                        // para asegurar que el pie refleje exactamente lo mostrado.
+                        const tablaLlantas = document.getElementById('tablaLlantasBloque');
+                        if (tablaLlantas && tablaLlantas.rows && tablaLlantas.rows.length > 0) {
+                            let totalVol = 0;
+                            let totalPeso = 0;
+                            Array.from(tablaLlantas.rows).forEach(row => {
+                                try {
+                                    const volCell = row.cells[4] && row.cells[4].textContent ? row.cells[4].textContent : '0';
+                                    const pesCell = row.cells[5] && row.cells[5].textContent ? row.cells[5].textContent : '0';
+                                    totalVol += parseNumber(volCell);
+                                    totalPeso += parseNumber(pesCell);
+                                } catch (e) { /* ignorar filas malformadas */ }
+                            });
+                            const elVol = document.getElementById('totalVolumenLlantas');
+                            const elPeso = document.getElementById('totalPesoLlantas');
+                            if (elVol) { elVol.dataset.value = totalVol; elVol.textContent = formatNumber(totalVol, 3); }
+                            if (elPeso) { elPeso.dataset.value = totalPeso; elPeso.textContent = formatNumber(totalPeso, 3); }
+                            console.log('Totales actualizados desde tabla:', { totalVol, totalPeso });
+                            return;
+                        }
+
+                        // Si no hay filas en la tabla, caer en la suma por distribución
+                        const totalVol = (distribucion || []).reduce((s, d) => s + (parseNumber(d.volumen) || 0), 0);
+                        const totalPeso = (distribucion || []).reduce((s, d) => s + (parseNumber(d.peso) || 0), 0);
                         const elVol = document.getElementById('totalVolumenLlantas');
                         const elPeso = document.getElementById('totalPesoLlantas');
-                        if (elVol) elVol.textContent = totalVol.toFixed(2);
-                        if (elPeso) elPeso.textContent = totalPeso.toFixed(2);
-                        console.log('Totales actualizados:', { totalVol, totalPeso });
+                        if (elVol) { elVol.dataset.value = totalVol; elVol.textContent = formatNumber(totalVol, 3); }
+                        if (elPeso) { elPeso.dataset.value = totalPeso; elPeso.textContent = formatNumber(totalPeso, 3); }
+                        console.log('Totales actualizados desde distribución:', { totalVol, totalPeso });
                     } catch (e) {
                         console.warn('Error actualizando totales de distribución', e);
                     }
@@ -1758,9 +1816,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         // Construir lista de unidades candidatas que soporten este volumen/peso
                         const candidatos = unidadesFlota.filter(u => {
-                            const capVol = parseFloat(u.capacidadVolumen) || 0;
-                            const capPeso = parseFloat(u.capacidadPeso) || 0;
-                            return capVol >= (parseFloat(item.volumen) || 0) && capPeso >= (parseFloat(item.peso) || 0);
+                            const capVol = parseNumber(u.capacidadVolumen) || 0;
+                            const capPeso = parseNumber(u.capacidadPeso) || 0;
+                            return capVol >= (parseNumber(item.volumen) || 0) && capPeso >= (parseNumber(item.peso) || 0);
                         });
 
                         // Asegurar que la unidad actualmente asignada esté en la lista
@@ -1855,16 +1913,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Regla: mostrar sólo si se requieren múltiples unidades o
                         // si ningún vehículo disponible puede manejar el volumen/peso total.
                         try {
-                            const totalVolumen = distribucion.reduce((s, it) => s + (parseFloat(it.volumen) || 0), 0);
-                            const totalPeso = distribucion.reduce((s, it) => s + (parseFloat(it.peso) || 0), 0);
+                            const totalVolumen = distribucion.reduce((s, it) => s + (parseNumber(it.volumen) || 0), 0);
+                            const totalPeso = distribucion.reduce((s, it) => s + (parseNumber(it.peso) || 0), 0);
 
                             // Obtener la flota desde la tabla (función existente)
                             const unidadesFlota = typeof obtenerUnidadesFlota === 'function' ? obtenerUnidadesFlota() : [];
 
                             // Comprobar si existe alguna unidad capaz de llevar la carga en una sola pieza
                             const unidadApta = unidadesFlota.find(u => {
-                                const capVol = parseFloat(u.capacidadVolumen) || parseFloat(u.capacidad || u.capacidadVolumen) || 0;
-                                const capPeso = parseFloat(u.capacidadPeso) || parseFloat(u.capacidad_peso || u.capacidadPeso) || 0;
+                                const capVol = parseNumber(u.capacidadVolumen) || parseNumber(u.capacidad || u.capacidadVolumen) || 0;
+                                const capPeso = parseNumber(u.capacidadPeso) || parseNumber(u.capacidad_peso || u.capacidadPeso) || 0;
                                 return capVol >= totalVolumen && capPeso >= totalPeso;
                             });
 
@@ -1951,8 +2009,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                     economico: unidad.codigo || 'Sin económico',
                                     codigo: unidad.codigo,  // Agregar ambos para compatibilidad
                                     nombre: unidad.nombre,
-                                    capacidadVolumen: parseFloat(unidad.capacidadVolumen) || 0,
-                                    capacidadPeso: parseFloat(unidad.capacidadPeso) || 0
+                                    capacidadVolumen: parseNumber(unidad.capacidadVolumen) || 0,
+                                    capacidadPeso: parseNumber(unidad.capacidadPeso) || 0
                                 };
                             })
                             .filter(unidad => 
@@ -1988,9 +2046,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             economico: celdas[1].textContent,
                             llantasEstimadas: parseInt(celdas[2].textContent),
                             descripciones: descripciones !== 'Sin descripciones' ? descripciones : '',
-                            volumen: parseFloat(celdas[4].textContent),
-                            peso: parseFloat(celdas[5].textContent),
-                            eficiencia: parseFloat(celdas[6].textContent)
+                            volumen: parseNumber(celdas[4].textContent),
+                            peso: parseNumber(celdas[5].textContent),
+                            eficiencia: parseNumber(celdas[6].textContent)
                         });
                     }
 
@@ -3157,6 +3215,49 @@ async function buscarBloqueEnModo() {
     }
 }
 
+// Utilidades numéricas: parseo robusto y formateo en español (coma decimal)
+function parseNumber(input) {
+    if (input === null || input === undefined) return 0;
+    if (typeof input === 'number') return isNaN(input) ? 0 : input;
+    let s = String(input).trim();
+    if (s === '') return 0;
+    // Eliminar símbolo de moneda y espacios
+    s = s.replace(/\$/g, '').replace(/\s+/g, '');
+    // Si contiene ambos separadores, asumimos que '.' es decimal y ',' miles -> eliminar ','
+    if (s.indexOf(',') > -1 && s.indexOf('.') > -1) {
+        s = s.replace(/,/g, '');
+    } else if (s.indexOf(',') > -1 && s.indexOf('.') === -1) {
+        // Solo coma: asumir que es separador decimal
+        s = s.replace(/,/g, '.');
+    } else {
+        // Solo puntos (o ninguno) -> dejar como está
+    }
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+}
+
+function formatNumber(value, decimals = 2, isCurrency = false) {
+    const opts = { minimumFractionDigits: decimals, maximumFractionDigits: decimals };
+    if (isCurrency) {
+        // Mostrar sin símbolo aquí; quien llama añadirá '$' si lo desea
+    }
+    try {
+        return new Intl.NumberFormat('es-MX', opts).format(Number(value) || 0);
+    } catch (e) {
+        return (Number(value) || 0).toFixed(decimals).replace('.', ',');
+    }
+}
+
+function getNumericTotal(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return 0;
+    // Preferir dataset.value si está presente
+    if (el.dataset && el.dataset.value !== undefined) {
+        return parseNumber(el.dataset.value);
+    }
+    return parseNumber(el.textContent || el.innerText || '0');
+}
+
 function mostrarResultadoBloqueModo(divResultado, folio, tipo, datos) {
     const cantidadItems = Array.isArray(datos) ? datos.length : (datos.datos ? datos.datos.length : 0);
     
@@ -3179,9 +3280,9 @@ function obtenerDatosFlota() {
     const tablaFlota = document.querySelector('#flota table tbody');
     if (!tablaFlota) return [];
     
-    // Obtener el volumen y peso total del bloque actual
-    const volumenTotal = parseFloat(document.getElementById('totalVolumenLlantas').textContent) || 0;
-    const pesoTotal = parseFloat(document.getElementById('totalPesoLlantas').textContent) || 0;
+    // Obtener el volumen y peso total del bloque actual (numérico, usando helper)
+    const volumenTotal = getNumericTotal('totalVolumenLlantas');
+    const pesoTotal = getNumericTotal('totalPesoLlantas');
     
     return Array.from(tablaFlota.rows)
         .map(row => {
@@ -3189,9 +3290,9 @@ function obtenerDatosFlota() {
             const volumenStr = row.cells[7].textContent.trim();
             const pesoStr = row.cells[6].textContent.trim();
             
-            // Convertir y validar los valores
-            const capacidadVolumen = parseFloat(volumenStr) || 0;
-            const capacidadPeso = parseFloat(pesoStr) || 0;
+            // Convertir y validar los valores (parseo robusto)
+            const capacidadVolumen = parseNumber(volumenStr) || 0;
+            const capacidadPeso = parseNumber(pesoStr) || 0;
             
             // Calcular uso de volumen y peso
             const usoVolumen = (volumenTotal / capacidadVolumen) * 100;
@@ -3266,8 +3367,8 @@ async function apartarUnidad(economico) {
     }
   
     // Verificar totales antes de continuar
-    const totalVolumen = parseFloat(document.getElementById('totalVolumenLlantas').textContent) || 0;
-    const totalPeso = parseFloat(document.getElementById('totalPesoLlantas').textContent) || 0;
+    const totalVolumen = getNumericTotal('totalVolumenLlantas');
+    const totalPeso = getNumericTotal('totalPesoLlantas');
     
     if (totalVolumen === 0 || totalPeso === 0) {
         Swal.fire({
@@ -3326,9 +3427,9 @@ async function apartarUnidad(economico) {
                             descripcion: row.cells[1].textContent.trim(),
                             linea: row.cells[2].textContent.trim(),
                             cantidad: parseInt(row.cells[3].textContent) || 0,
-                            volumen: parseFloat(row.cells[4].textContent) || 0,
-                            peso: parseFloat(row.cells[5].textContent) || 0,
-                            valor: parseFloat(row.cells[6].textContent.replace(/[^0-9.-]+/g, '')) || 0
+                            volumen: parseNumber(row.cells[4].textContent) || 0,
+                            peso: parseNumber(row.cells[5].textContent) || 0,
+                            valor: parseNumber(row.cells[6].textContent.replace(/[^0-9,.-]+/g, '')) || 0
                         };
                     } catch (error) {
                         console.error('Error al procesar fila:', error);
@@ -3389,10 +3490,14 @@ async function apartarUnidad(economico) {
             // Limpiar completamente la pestaña de búsqueda de bloques
             // Limpiar tabla de llantas
             tablaLlantas.innerHTML = '';
-            document.getElementById('totalVolumenLlantas').textContent = '0';
-            document.getElementById('totalPesoLlantas').textContent = '0';
-            document.getElementById('totalValorLlantas').textContent = '$0';
-            document.getElementById('totalCantidadLlantas').textContent = '0';
+            const elVol = document.getElementById('totalVolumenLlantas');
+            const elPes = document.getElementById('totalPesoLlantas');
+            const elVal = document.getElementById('totalValorLlantas');
+            const elCan = document.getElementById('totalCantidadLlantas');
+            if (elVol) { elVol.dataset.value = 0; elVol.textContent = formatNumber(0,3); }
+            if (elPes) { elPes.dataset.value = 0; elPes.textContent = formatNumber(0,3); }
+            if (elVal) { elVal.dataset.value = 0; elVal.textContent = `$${formatNumber(0,2)}`; }
+            if (elCan) { elCan.dataset.value = 0; elCan.textContent = 0; }
 
             // Limpiar campo de búsqueda
             const inputBusqueda = document.getElementById('inputBusquedaBloqueNuevo');
@@ -3457,17 +3562,17 @@ async function actualizarUnidadesDisponibles() {
         return;
     }
 
-    // Obtener los totales actuales del bloque
-    const totalVolumen = parseFloat(document.getElementById('totalVolumenLlantas')?.textContent || '0');
-    const totalPeso = parseFloat(document.getElementById('totalPesoLlantas')?.textContent || '0');
+    // Obtener los totales actuales del bloque (numéricos)
+    const totalVolumen = getNumericTotal('totalVolumenLlantas');
+    const totalPeso = getNumericTotal('totalPesoLlantas');
 
     // Obtener unidades disponibles
     let unidadesDisponibles = obtenerUnidadesFlota();
     
     // Verificar si alguna unidad puede manejar el pedido sola
     const unidadApta = unidadesDisponibles.find(u => 
-        parseFloat(u.capacidadVolumen) >= totalVolumen && 
-        parseFloat(u.capacidadPeso) >= totalPeso
+        parseNumber(u.capacidadVolumen) >= totalVolumen && 
+        parseNumber(u.capacidadPeso) >= totalPeso
     );
 
     // Si no hay llantas agregadas, no mostrar unidades
@@ -3995,9 +4100,9 @@ async function actualizarTablaLlantasBloque(llantas) {
         }
 
         // Intentar leer volumen/peso/valor desde la entrada del bloque (prioridad) -> luego inventario -> valores calculados
-        let volumenUnitario = parseFloat(llanta['Volumen unitario'] || llanta['Volumen'] || llanta.Volumen || llanta.volumen || (llantaInventario && (llantaInventario.Volumen || llantaInventario.volumen)) || 0) || 0;
-        let pesoUnitario = parseFloat(llanta['Peso unitario'] || llanta['Peso'] || llanta.Peso || llanta.peso || (llantaInventario && (llantaInventario.Peso || llantaInventario.peso)) || 0) || 0;
-        let valorUnitario = parseFloat(llanta['Valor unitario'] || llanta['Valor'] || llanta.Valor || llanta.valor || (llantaInventario && (llantaInventario.Valor || llantaInventario.valor)) || 0) || 0;
+        let volumenUnitario = parseNumber(llanta['Volumen unitario'] || llanta['Volumen'] || llanta.Volumen || llanta.volumen || (llantaInventario && (llantaInventario.Volumen || llantaInventario.volumen)) || 0);
+        let pesoUnitario = parseNumber(llanta['Peso unitario'] || llanta['Peso'] || llanta.Peso || llanta.peso || (llantaInventario && (llantaInventario.Peso || llantaInventario.peso)) || 0);
+        let valorUnitario = parseNumber(llanta['Valor unitario'] || llanta['Valor'] || llanta.Valor || llanta.valor || (llantaInventario && (llantaInventario.Valor || llantaInventario.valor)) || 0);
 
         // Si faltan, intentar calcular heurísticamente (no abortar)
         try {
@@ -4053,9 +4158,9 @@ async function actualizarTablaLlantasBloque(llantas) {
             <td>${datos.descripcion}</td>
             <td>${datos.linea}</td>
             <td style="text-align: center;">${datos.cantidad}</td>
-            <td style="text-align: right;">${datos.volTotal.toFixed(3)}</td>
-            <td style="text-align: right;">${datos.pesoTotal.toFixed(3)}</td>
-            <td style="text-align: right;">$${datos.valorTotal.toFixed(2)}</td>
+            <td style="text-align: right;">${formatNumber(datos.volTotal, 3)}</td>
+            <td style="text-align: right;">${formatNumber(datos.pesoTotal, 3)}</td>
+            <td style="text-align: right;">$${formatNumber(datos.valorTotal, 2)}</td>
             <td class="text-center">
                 <button class="btn btn-sm btn-danger" onclick="eliminarLlantaBloque('${datos.codigo}')">
                     <i class="bi bi-trash"></i>
@@ -4065,11 +4170,15 @@ async function actualizarTablaLlantasBloque(llantas) {
         tablaLlantas.appendChild(fila);
     });
 
-    // Actualizar totales en el pie de la tabla
-    document.getElementById('totalCantidadLlantas').textContent = totalCantidad;
-    document.getElementById('totalVolumenLlantas').textContent = totalVolumen.toFixed(3);
-    document.getElementById('totalPesoLlantas').textContent = totalPeso.toFixed(3);
-    document.getElementById('totalValorLlantas').textContent = `$${totalValor.toFixed(2)}`;
+    // Actualizar totales en el pie de la tabla (guardar valor numérico en dataset.value y mostrar formateado)
+    const elTotalCantidad = document.getElementById('totalCantidadLlantas');
+    const elTotalVolumen = document.getElementById('totalVolumenLlantas');
+    const elTotalPeso = document.getElementById('totalPesoLlantas');
+    const elTotalValor = document.getElementById('totalValorLlantas');
+    if (elTotalCantidad) { elTotalCantidad.textContent = totalCantidad; elTotalCantidad.dataset.value = totalCantidad; }
+    if (elTotalVolumen) { elTotalVolumen.textContent = formatNumber(totalVolumen, 3); elTotalVolumen.dataset.value = totalVolumen; }
+    if (elTotalPeso) { elTotalPeso.textContent = formatNumber(totalPeso, 3); elTotalPeso.dataset.value = totalPeso; }
+    if (elTotalValor) { elTotalValor.textContent = `$${formatNumber(totalValor, 2)}`; elTotalValor.dataset.value = totalValor; }
     
     // Actualizar el contador en el encabezado del acordeón
     document.getElementById('contadorLlantasBloque').textContent = 
@@ -5819,9 +5928,11 @@ function searchInventario() {
             }
         }
 
-        // Reiniciar contadores y totales
-        document.getElementById('totalVolumenLlantas').textContent = '0.00';
-        document.getElementById('totalPesoLlantas').textContent = '0.00';
+        // Reiniciar contadores y totales (usar formato local y dataset)
+        const elVol = document.getElementById('totalVolumenLlantas');
+        const elPes = document.getElementById('totalPesoLlantas');
+        if (elVol) { elVol.dataset.value = 0; elVol.textContent = formatNumber(0,3); }
+        if (elPes) { elPes.dataset.value = 0; elPes.textContent = formatNumber(0,3); }
 
         // Limpiar el botón de apartar
         const botonApartar = document.querySelector('#botonesDistribucionMultiple button');
