@@ -2494,6 +2494,8 @@ function safeNum(v) {
             peso: ['peso', 'Peso', 'weight', 'Weight'],
             valor: ['valor', 'Valor', 'precio', 'Precio', 'value']
         };
+
+        // (el Set `codigosGuardados` se declara en el ámbito de agregarBloqueEnModo)
         const list = variants[name] || keys;
         for (const k of list) {
             if (k in obj) return obj[k];
@@ -8039,8 +8041,10 @@ function searchINVENTARIO() {
             inputCodigo.parentElement.appendChild(dropdownDiv);
         }
 
-        dropdownDiv.innerHTML = coincidencias.map(item => `
-            <div onclick="seleccionarLlantaPorCodigo('${item.clave}')" style="
+        dropdownDiv.innerHTML = coincidencias.map(item => {
+            const safeClave = String(item.clave || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            return `
+            <div onclick="seleccionarLlantaPorCodigo('${safeClave}')" style="
                 padding: 8px 12px;
                 cursor: pointer;
                 border-bottom: 1px solid #eee;
@@ -8048,7 +8052,7 @@ function searchINVENTARIO() {
             " onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'">
                 <strong>${item.clave}</strong> — ${item.descripcion}
             </div>
-        `).join('');
+        `}).join('');
         
         dropdownDiv.style.display = 'block';
     }
@@ -8074,8 +8078,11 @@ function searchINVENTARIO() {
             inputDesc.parentElement.appendChild(dropdownDiv);
         }
 
-        dropdownDiv.innerHTML = coincidencias.map(item => `
-            <div onclick="seleccionarLlantaPorDescripcion('${item.descripcion}')" style="
+        dropdownDiv.innerHTML = coincidencias.map(item => {
+            const safeDesc = String(item.descripcion || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const safeClave = String(item.clave || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            return `
+            <div onclick="seleccionarLlantaPorDescripcion('${safeDesc}')" style="
                 padding: 8px 12px;
                 cursor: pointer;
                 border-bottom: 1px solid #eee;
@@ -8083,7 +8090,7 @@ function searchINVENTARIO() {
             " onmouseover="this.style.backgroundColor='#f0f0f0'" onmouseout="this.style.backgroundColor='white'">
                 <strong>${item.clave}</strong> — ${item.descripcion}
             </div>
-        `).join('');
+        `}).join('');
         
         dropdownDiv.style.display = 'block';
     }
@@ -8099,7 +8106,8 @@ function searchINVENTARIO() {
     }
 
     function seleccionarLlantaPorCodigo(clave) {
-        const llanta = INVENTARIO.find(item => item.clave.toString() === clave.toString());
+        const claveStr = String(clave || '').trim();
+        const llanta = INVENTARIO.find(item => String(item.clave || '').toString() === claveStr);
         if (llanta) {
             rellenarDatosLlantaPedido(llanta);
             document.getElementById('pedidoCodigoLlanta').value = llanta.clave;
@@ -8107,10 +8115,17 @@ function searchINVENTARIO() {
     }
 
     function seleccionarLlantaPorDescripcion(descripcion) {
-        const llanta = INVENTARIO.find(item => item.descripcion === descripcion);
+        const descStr = String(descripcion || '').trim();
+        // Buscar coincidencia exacta luego por normalización y finalmente por inclusión
+        let llanta = INVENTARIO.find(item => String(item.descripcion || '').trim() === descStr);
+        if (!llanta) {
+            const descLower = descStr.toLowerCase();
+            llanta = INVENTARIO.find(item => String(item.descripcion || '').toLowerCase().trim() === descLower) ||
+                     INVENTARIO.find(item => (item.descripcion || '').toLowerCase().includes(descLower));
+        }
         if (llanta) {
             rellenarDatosLlantaPedido(llanta);
-            document.getElementById('pedidoDescripcionLlantaInput').value = descripcion;
+            document.getElementById('pedidoDescripcionLlantaInput').value = llanta.descripcion || descStr;
         }
     }
     function calcularTotalesPedido() {
@@ -14391,67 +14406,426 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
             llantasParaAgregar = llantasParaAgregar.concat(bloquesFactura[0].datos || []);
         }
 
+        // === FUNCIÓN AUXILIAR: Normalizar código + descripción para comparación robusta ===
+        const normalizarIdentificador = (codigo, descripcion) => {
+            const codNorm = (codigo || '').toString().trim().toUpperCase();
+            const descNorm = (descripcion || '').toString().trim().toUpperCase()
+                .replace(/\s+/g, ' ')
+                .replace(/[()]/g, '')
+                .trim();
+            return `${codNorm}|${descNorm}`;
+        };
+
+        // Set para marcar los identificadores guardados en este flujo.
+        // Declarado aquí para que exista aunque no haya productos nuevos (evita ReferenceError en el modal).
+        let codigosGuardados = new Set();
+
         if (llantasParaAgregar.length > 0) {
             // === DETECTAR PRODUCTOS NUEVOS (NO EN INVENTARIO) ===
             let productosNuevos = [];
             let productosYaExistentes = [];
+            const identificadoresYaProcesados = new Set(); // Evitar duplicados dentro del mismo bloque
             
             for (const llanta of llantasParaAgregar) {
                 const codigo = (llanta.Código || llanta.codigo || llanta.clave || '').toString() || null;
+                const descripcion = llanta.Descripción || llanta.descripcion || 'Sin descripción';
                 if (!codigo) continue;
                 
-                // Verificar si existe en INVENTARIO
-                const existeEnINVENTARIO = INVENTARIO.some(item => 
-                    item.clave === codigo || item.ID === codigo || item.Código === codigo
-                );
+                // VALIDACIÓN 1: Crear identificador único (código + descripción normalizado)
+                const identificador = normalizarIdentificador(codigo, descripcion);
+                
+                // VALIDACIÓN 2: Verificar si ya fue procesado en este bloque (evitar duplicados)
+                if (identificadoresYaProcesados.has(identificador)) {
+                    console.log(`[⏭️ SALTADO] ${codigo} | ${descripcion} ya fue procesado en este bloque (duplicado)`);
+                    continue;
+                }
+                
+                // VALIDACIÓN 3: Verificar si existe en INVENTARIO o ya está en el bloque acumulado
+                const codNorm = (codigo || '').toString().trim().toUpperCase();
+                const descNorm = (descripcion || '').toString().trim().toUpperCase().replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
+
+                const existeEnInventarioPorIdentificador = INVENTARIO.some(item => {
+                    const itemIdent = normalizarIdentificador(
+                        item.clave || item.ID || item.Código || '',
+                        item.descripcion || item.Descripción || ''
+                    );
+                    return itemIdent === identificador;
+                });
+
+                const existeEnInventarioPorCodigo = INVENTARIO.some(item => {
+                    const itemCode = (item.clave || item.Clave || item.ID || item.Código || item.codigo || '').toString().trim().toUpperCase();
+                    return itemCode && itemCode === codNorm;
+                });
+
+                const existeEnInventarioPorDescripcion = INVENTARIO.some(item => {
+                    const itemDesc = (item.descripcion || item.Descripción || item.nombre || '').toString().trim().toUpperCase().replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
+                    return itemDesc && (itemDesc.includes(descNorm) || descNorm.includes(itemDesc));
+                });
+
+                const existeEnBloqueAcumulado = Array.isArray(llantasAcumuladasEnBloque) && llantasAcumuladasEnBloque.some(item => {
+                    const itemIdent = normalizarIdentificador(
+                        item.Código || item.codigo || item.clave || item.Clave || item.ID || '',
+                        item.Descripción || item.descripcion || item.nombre || ''
+                    );
+                    const itemCode = (item.Código || item.codigo || item.clave || item.Clave || item.ID || '').toString().trim().toUpperCase();
+                    const itemDesc = (item.Descripción || item.descripcion || item.nombre || '').toString().trim().toUpperCase().replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
+                    return itemIdent === identificador || (itemCode && itemCode === codNorm) || (itemDesc && (itemDesc.includes(descNorm) || descNorm.includes(itemDesc)));
+                });
+
+                const existeEnINVENTARIO = existeEnInventarioPorIdentificador || existeEnInventarioPorCodigo || existeEnInventarioPorDescripcion || existeEnBloqueAcumulado;
                 
                 if (!existeEnINVENTARIO) {
+                    // Es nuevo: agregar a procesar
                     productosNuevos.push(llanta);
+                    identificadoresYaProcesados.add(identificador);
+                    console.log(`[✅ NUEVO] ${codigo} | ${descripcion} será agregado al inventario`);
                 } else {
+                    // Ya existe en inventario
                     productosYaExistentes.push(llanta);
+                    identificadoresYaProcesados.add(identificador);
+                    console.log(`[ℹ️ EXISTENTE] ${codigo} | ${descripcion} ya está en inventario`);
                 }
             }
             
             // === AGREGAR PRODUCTOS NUEVOS AL INVENTARIO (persistir en SheetDB) ===
             let productosAgregadosAlINVENTARIO = 0;
             const guardadosConExito = [];
+            
+            // FUNCIÓN HELPER: Calcular valores por defecto si fallan los cálculos precisos
+            const calcularValoresPorDefecto = (descripcion) => {
+                const desc = (descripcion || '').toUpperCase();
+                let volumenDefault = 0.0100; // 0.01 m³ por defecto
+                let pesoDefault = 10; // 10 kg por defecto
+                
+                // Ajustes según tipo de llanta detectada
+                if (desc.includes('AGRICOLA') || desc.includes('TRACTOR')) {
+                    volumenDefault = 0.0800; pesoDefault = 60;
+                } else if (desc.includes('INDUSTRIAL') || desc.includes('OTR')) {
+                    volumenDefault = 0.0600; pesoDefault = 50;
+                } else if (desc.includes('CAMION') || desc.includes('11R') || desc.includes('22.5')) {
+                    volumenDefault = 0.0500; pesoDefault = 80;
+                } else if (desc.includes('4X4') || desc.includes('SUV')) {
+                    volumenDefault = 0.0300; pesoDefault = 25;
+                } else if (desc.includes('SPORT') || desc.includes('RACING')) {
+                    volumenDefault = 0.0150; pesoDefault = 12;
+                }
+                
+                return { volumen: volumenDefault, peso: pesoDefault };
+            };
+
             if (productosNuevos.length > 0) {
+                codigosGuardados = new Set(); // Evitar duplicados en este ciclo (reiniciar para este ciclo)
+                
                 for (const producto of productosNuevos) {
                     try {
                         const codigo = (producto.Código || producto.codigo || producto.clave || '').toString();
                         const descripcion = producto.Descripción || producto.descripcion || 'Sin descripción';
 
+                        // Crear identificador único (código + descripción normalizado)
+                        const identificadorProducto = normalizarIdentificador(codigo, descripcion);
+
+                        // VALIDACIÓN CRÍTICA 1: Si ya fue guardado en este ciclo, saltar
+                        if (codigosGuardados.has(identificadorProducto)) {
+                            console.warn(`[⚠️ DUPLICADO DETECTADO] ${codigo} | ${descripcion} ya fue guardado en este ciclo. Saltando...`);
+                            continue;
+                        }
+
+                        // SEGUNDA VERIFICACIÓN: Verificar NUEVAMENTE si existe en INVENTARIO (por si cambió)
+                        const existeAhoraEnINVENTARIO = INVENTARIO.some(item => {
+                            const itemIdent = normalizarIdentificador(
+                                item.clave || item.ID || item.Código || '',
+                                item.descripcion || item.Descripción || ''
+                            );
+                            return itemIdent === identificadorProducto;
+                        });
+                        if (existeAhoraEnINVENTARIO) {
+                            console.log(`[ℹ️ EXISTENTE] ${codigo} | ${descripcion} ya está en inventario. Saltando para evitar duplicado...`);
+                            codigosGuardados.add(identificadorProducto);
+                            continue;
+                        }
+
                         console.log(`[AGREGAR PRODUCTO] Procesando: ${codigo} - ${descripcion}`);
 
-                        // Calcular volumen y peso si no los tiene
+                        // Calcular volumen y peso si no los tiene (USANDO LA MISMA LÓGICA DE calcularVolumenINVENTARIO)
                         let volumen = parseNumber(producto.Volumen || producto.volumen || 0);
                         let peso = parseNumber(producto.Peso || producto.peso || 0);
 
                         if (!volumen || volumen === 0) {
-                            if (typeof calcularVolumenLlanta === 'function') {
-                                try {
-                                    const vCalc = await calcularVolumenLlanta(descripcion);
-                                    if (vCalc && !isNaN(vCalc)) {
-                                        volumen = Number(vCalc);
-                                        console.log(`[VOLUMEN CALCULADO] ${codigo}: ${volumen} m³`);
+                            try {
+                                // Usar la misma lógica de calcularVolumenINVENTARIO para consistencia
+                                let desc = (descripcion || '').replace(/[()]/g, '').toUpperCase();
+                                
+                                // Patrones para diferentes tipos de llantas (idénticos a calcularVolumenINVENTARIO)
+                                const patrones = [
+                                    {
+                                        regex: /^(\d{2,3})X(\d{1,2}\.\d{1,2}|\d{1,2})\s*R?(\d{2})/i,
+                                        calc: (m) => {
+                                            const overallIn = Number(m[1]);
+                                            const widthIn = Number(m[2]);
+                                            const rimIn = Number(m[3]);
+                                            const ancho = widthIn * 25.4 / 1000;
+                                            const rin = rimIn * 0.0254;
+                                            let perfil = 0.65;
+                                            if (overallIn > rimIn && widthIn > 0) {
+                                                perfil = (overallIn - rimIn) / (2 * widthIn);
+                                                if (perfil <= 0 || !isFinite(perfil)) perfil = 0.65;
+                                            }
+                                            return { ancho, perfil, rin, tipo: '4X4' };
+                                        }
+                                    },
+                                    {
+                                        regex: /^(\d{3})\s*R(\d{2})\s*.*?(?:\((\d{1,2})\))?.*?(\d{3}\/\d{3}R)?/i,
+                                        calc: (m) => ({ ancho: Number(m[1]) / 1000, perfil: 0.82, rin: Number(m[2]) * 0.0254, tipo: 'COMERCIAL', capas: m[3] ? Number(m[3]) : 8 })
+                                    },
+                                    {
+                                        regex: /^(\d+\.?\d*)L-(\d+)\s*(?:IND|INDUSTRIAL)?\s*.*?(?:\((\d{1,2})\))?.*?(L[2-5]|SEVERE)?/i,
+                                        calc: (m) => { const ancho = Number(m[1]) * 25.4 / 1000; const rin = Number(m[2]) * 0.0254; const capas = m[3] ? Number(m[3]) : 12; const esSevere = m[4]?.includes('SEVERE') || false; return { ancho, perfil: 0.90, rin, tipo: 'INDUSTRIAL', capas, factorAdicional: esSevere ? 1.1 : 1.0 }; }
+                                    },
+                                    {
+                                        regex: /^(\d{2})L-(\d{2})\s*(?:\((\d{1,2})\))?\s*((?:SKS|F3|IND|AGRO|CT).*)?/i,
+                                        calc: (m) => { const ancho = Number(m[1]) * 25.4 * 1.15 / 1000; const rin = Number(m[2]) * 0.0254; const capas = m[3] ? Number(m[3]) : 12; const tipo = m[4]?.includes('IND') || m[4]?.includes('SKS') ? 'INDUSTRIAL' : m[4]?.includes('AGRO') ? 'AGRICOLA' : 'INDUSTRIAL'; return { ancho, perfil: 0.90, rin, tipo, capas }; }
+                                    },
+                                    {
+                                        regex: /^[P]?(\d{3})[\/\s\-](\d{2})[\/\s\-]?R?(\d{2})/,
+                                        calc: (m) => ({ ancho: Number(m[1]) / 1000, perfil: Number(m[2]) / 100, rin: Number(m[3]) * 0.0254, tipo: 'AUTO' })
+                                    },
+                                    {
+                                        regex: /^(\d{2,3})R(\d{2}\.\d*)|(^\d{3}\/\d{2}R\d{2}\.\d*)/,
+                                        calc: (m) => ({ ancho: Number(m[1] || m[3]) * 25.4 / 1000, perfil: 0.80, rin: Number(m[2] || m[4]) * 0.0254, tipo: 'CAMION' })
+                                    },
+                                    {
+                                        regex: /^(\d{1,2}\.?\d*)[\/\-](?:(\d{2})[\/\-])?(\d{2})/,
+                                        calc: (m) => ({ ancho: Number(m[1]) * 25.4 / 1000, perfil: Number(m[2] || 90) / 100, rin: Number(m[3]) * 0.0254, tipo: 'AGRICOLA' })
                                     }
-                                } catch (e) {
-                                    console.warn('[ERROR VOLUMEN]', e);
+                                ];
+
+                                let medidas = null;
+                                let tipoLlanta = 'AUTO';
+
+                                // Determinar tipo por descripción
+                                if (desc.includes('AGRICOLA') || desc.includes('TRACTOR') || desc.includes('AGRO') || /\bR1\b/.test(desc)) {
+                                    tipoLlanta = 'AGRICOLA';
+                                } else if (desc.includes('INDUSTRIAL') || desc.includes('OTR') || /\bE[3-4]\/L[3-5]\b/.test(desc) || /\b\d{2,2}\.\d{2}-\d{2}\b/.test(desc) || /\b\d{2,2}-\d{2,2}\.?\d{0,1}\b/.test(desc) || /\bL-?5\b/.test(desc)) {
+                                    tipoLlanta = 'INDUSTRIAL';
+                                } else if (desc.includes('CAMION') || /\b\d{2,3}R\d{2}\.\d{1,2}\b/.test(desc) || /\b\d{3}\/\d{2}R\d{2}\.\d{1,2}\b/.test(desc) || desc.match(/^11R22\.5/)) {
+                                    tipoLlanta = 'CAMION';
+                                } else if (desc.includes('4X4')) {
+                                    tipoLlanta = '4X4';
                                 }
+
+                                // Buscar patrón coincidente
+                                for (const patron of patrones) {
+                                    const match = desc.match(patron.regex);
+                                    if (match) {
+                                        medidas = patron.calc(match);
+                                        if (medidas && medidas.tipo) tipoLlanta = medidas.tipo;
+                                        break;
+                                    }
+                                }
+
+                                if (medidas) {
+                                    let factorCorreccion, margenLogisticoTipo, volumen_m3;
+                                    
+                                    if (tipoLlanta === 'AGRICOLA') {
+                                        factorCorreccion = desc.includes('L-') ? 1.0 : 1.0;
+                                        margenLogisticoTipo = 1.040;
+                                        let alturaFlanco = medidas.perfil * medidas.ancho;
+                                        let diametroExterno = (medidas.rin + 2 * alturaFlanco) * 1.10;
+                                        volumen_m3 = Math.PI * Math.pow(diametroExterno/2, 2) * medidas.ancho * factorCorreccion * margenLogisticoTipo;
+                                        if (medidas.capas && medidas.capas > 12) volumen_m3 *= (1 + (medidas.capas - 12) * 0.025);
+                                    } else if (tipoLlanta === 'INDUSTRIAL') {
+                                        factorCorreccion = desc.includes('SKS') ? 1.10 : 1.10;
+                                        margenLogisticoTipo = 1.50;
+                                        let alturaFlanco = medidas.perfil * medidas.ancho;
+                                        let diametroExterno = (medidas.rin + 2 * alturaFlanco) * 1.09;
+                                        volumen_m3 = Math.PI * Math.pow(diametroExterno/2, 2) * medidas.ancho * factorCorreccion * margenLogisticoTipo;
+                                        if (desc.match(/SKS-[1-3]|L-5/)) volumen_m3 *= 1.12;
+                                        if (medidas.capas && medidas.capas > 12) volumen_m3 *= (1 + (medidas.capas - 12) * 0.02);
+                                    } else if (tipoLlanta === 'CAMION') {
+                                        factorCorreccion = 1.20;
+                                        margenLogisticoTipo = 1.20;
+                                        let alturaFlanco = medidas.perfil * medidas.ancho;
+                                        let diametroExterno = medidas.rin + 2 * alturaFlanco;
+                                        volumen_m3 = Math.PI * Math.pow(diametroExterno/2, 2) * medidas.ancho * factorCorreccion * margenLogisticoTipo;
+                                    } else if (tipoLlanta === '4X4') {
+                                        factorCorreccion = 1.45;
+                                        margenLogisticoTipo = 1.22;
+                                        let alturaFlanco = medidas.perfil * medidas.ancho;
+                                        let diametroExterno = medidas.rin + 2 * alturaFlanco;
+                                        volumen_m3 = Math.PI * Math.pow(diametroExterno/2, 2) * medidas.ancho * factorCorreccion * margenLogisticoTipo;
+                                    } else {
+                                        factorCorreccion = 1.10;
+                                        margenLogisticoTipo = 1.10;
+                                        let alturaFlanco = medidas.perfil * medidas.ancho;
+                                        let diametroExterno = medidas.rin + 2 * alturaFlanco;
+                                        volumen_m3 = Math.PI * Math.pow(diametroExterno/2, 2) * medidas.ancho * factorCorreccion * margenLogisticoTipo;
+                                    }
+                                    
+                                    volumen = volumen_m3;
+                                    console.log(`[VOLUMEN CALCULADO] ${codigo}: ${volumen.toFixed(4)} m³ (tipo: ${tipoLlanta})`);
+                                }
+                            } catch (e) {
+                                console.warn('[ERROR VOLUMEN]', e);
                             }
                         }
 
                         if (!peso || peso === 0) {
-                            if (typeof calcularPesoLlanta === 'function') {
-                                try {
-                                    const pCalc = await calcularPesoLlanta(descripcion);
-                                    if (pCalc && !isNaN(pCalc)) {
-                                        peso = Number(pCalc);
-                                        console.log(`[PESO CALCULADO] ${codigo}: ${peso} kg`);
+                            try {
+                                // Usar la misma lógica COMPLETA de calcularPesosINVENTARIO para máxima consistencia
+                                let desc = (descripcion || '').toUpperCase();
+                                
+                                const patrones = [
+                                    {
+                                        regex: /^(\d{3})[\s\/](\d{2})[\s\/]?R(\d{2})/i,
+                                        calc: (m, desc = '') => {
+                                            const ancho = Number(m[1]); const perfil = Number(m[2]); const rin = Number(m[3]);
+                                            const base = (ancho * perfil/100 * rin/25.4) * 0.2;
+                                            let factor = 1.0;
+                                            if (desc.includes('SUV') || desc.includes('CAMIONETA')) factor *= 0.90;
+                                            if (desc.includes('PERFOR')) factor *= 0.90; if (desc.includes('AGATE')) factor *= 0.90;
+                                            if (desc.includes('BLACKHAWK')) factor *= 1.90; if (desc.includes('EFFICIENT')) factor *= 0.90;
+                                            if (desc.includes('ANTARES')) factor *= 0.90; if (desc.includes('ATLAS')) factor *= 1.00;
+                                            if (desc.includes('CACHLAND')) factor *= 0.90; if (desc.includes('DOUBLEKING')) factor *= 0.90;
+                                            if (desc.includes('FRONWAY')) factor *= 0.90; if (desc.includes('KAPSEN')) factor *= 0.90;
+                                            if (desc.includes('LINGLONG')) factor *= 0.90; if (desc.includes('MAXTREK')) factor *= 0.90;
+                                            if (desc.includes('MIRAGE')) factor *= 0.90; if (desc.includes('SAFERICH')) factor *= 0.90;
+                                            if (desc.includes('SAILUN')) factor *= 0.90; if (desc.includes('AT') || desc.includes('ALL TERRAIN')) factor *= 0.90;
+                                            if (desc.includes('MT') || desc.includes('MUD TERRAIN')) factor *= 0.90;
+                                            if (desc.includes('SPORT') || desc.includes('RACING')) factor *= 0.90;
+                                            return { peso: base * factor, tipo: desc.includes('SUV') || desc.includes('CAMIONETA') ? 'SUV' : 'AUTO' };
+                                        }
+                                    },
+                                    {
+                                        regex: /^(\d{2})R(\d{2}\.?\d*)/i,
+                                        calc: (m, desc = '') => {
+                                            const ancho = Number(m[1]) * 25.4; const rin = Number(m[2]);
+                                            const base = (ancho * 0.8 * rin/25.4) * 0.39;
+                                            let factor = 1.50;
+                                            if (desc.includes('TRACCION')) factor *= 0.90; if (desc.includes('DIRECCION')) factor *= 0.90;
+                                            if (desc.includes('MIXTA')) factor *= 0.90; if (desc.includes('MINERA')) factor *= 0.50;
+                                            return { peso: base * factor, tipo: 'CAMION' };
+                                        }
+                                    },
+                                    {
+                                        regex: /^(\d+\.\d+)-(\d{2})(?:\s*([A-Z0-9\-]+))?/i,
+                                        calc: (m, desc) => {
+                                            const ancho = Number(m[1]) * 25.4; const rin = Number(m[2]);
+                                            const base = (ancho * rin/25.4) * 0.4;
+                                            const esConvencional = desc.includes('CONVENCIONAL');
+                                            const esAgro = /\bAGRO\b|\bAGRICOL|\bFARM\b/i.test(desc) || desc.includes('AG');
+                                            const esTL = /\bTL\b|\bTUBELESS\b/i.test(desc);
+                                            let factor = esConvencional ? 1.2 : 1.0;
+                                            if (esAgro) factor *= 2.10; if (esTL) factor *= 0.98;
+                                            const tipo = esAgro ? 'AGRICOLA' : (esConvencional ? 'CONVENCIONAL' : 'AUTO');
+                                            return { peso: base * factor, tipo: tipo };
+                                        }
+                                    },
+                                    {
+                                        regex: /^(\d{3})[\s\/]R(\d{2})(?:\s|$)/i,
+                                        calc: (m, desc = '') => {
+                                            const anchoMm = Number(m[1]); const rin = Number(m[2]);
+                                            const base = (anchoMm * rin) * 0.055;
+                                            let factor = 1.0;
+                                            if (desc.includes('DOUBLEKING') || desc.includes('DK228')) factor *= 0.95;
+                                            if (desc.includes('MICHELIN') || desc.includes('PIRELLI') || desc.includes('CONTINENTAL')) factor *= 1.15;
+                                            if (desc.includes('SPORT') || desc.includes('RACING')) factor *= 1.10;
+                                            if (desc.includes('ECO') || desc.includes('ECONOMY')) factor *= 0.90;
+                                            const cargaMatch = desc.match(/(\d{3})\/(\d{3})R/);
+                                            if (cargaMatch) { const indice = Number(cargaMatch[1]); if (indice > 100) factor *= 1.08; }
+                                            return { peso: base * factor, tipo: 'AUTO' };
+                                        }
+                                    },
+                                    {
+                                        regex: /^(\d{2,3})[Xx](\d{1,2}\.?\d*)[\s-]?R(\d{2})/i,
+                                        calc: (m, desc = '') => {
+                                            const diamIn = Number(m[1]); const anchoIn = Number(m[2]); const rin = Number(m[3]);
+                                            const anchoMm = anchoIn * 25.4;
+                                            const base = (anchoMm * (rin / 25.4)) * 0.45;
+                                            let factor = 1.0;
+                                            if (desc.includes('MT') || desc.includes('MUD TERRAIN')) factor *= 1.15;
+                                            if (desc.includes('AT') || desc.includes('ALL TERRAIN')) factor *= 1.05;
+                                            if (desc.includes('HEAVY DUTY') || desc.includes('HD')) factor *= 1.30;
+                                            if (desc.includes('REFORZADA') || desc.includes('REINFORCED')) factor *= 1.25;
+                                            return { peso: base * factor, tipo: 'TODO_TERRENO' };
+                                        }
+                                    },
+                                    {
+                                        regex: /^(\d+(?:\.\d+)?)-(\d+\.?\d*)\s*(IND|AG)?/i,
+                                        calc: (m, desc = '') => {
+                                            const ancho = Number(m[1]) * 25.4; const rin = Number(m[2]);
+                                            const base = ancho * rin/25.4 * 0.6;
+                                            let tipo, factorBase;
+                                            if (desc.includes('MINERIA') || desc.includes('MINING')) {
+                                                tipo = 'MINERIA'; factorBase = 0.20;
+                                            } else if (desc.includes('AG') || desc.includes('AGRICOLA') || desc.includes('FARM')) {
+                                                tipo = 'AGRICOLA'; factorBase = 2.00;
+                                            } else {
+                                                tipo = 'INDUSTRIAL'; factorBase = 0.50;
+                                            }
+                                            let factorAdicional = 1.0;
+                                            if (desc.includes('HEAVY DUTY') || desc.includes('HD')) factorAdicional *= 0.50;
+                                            if (desc.includes('L5') || desc.includes('ROCK')) factorAdicional *= 0.50;
+                                            if (desc.includes('ESPECIAL') || desc.includes('SPECIAL')) factorAdicional *= 0.50;
+                                            if (desc.includes('REFORZADA') || desc.includes('REINFORCED')) factorAdicional *= 0.50;
+                                            return { peso: base * factorBase * factorAdicional, tipo: tipo };
+                                        }
+                                    },
+                                    {
+                                        regex: /(\d{3})\/(\d{2})R(\d{2})\s+\w+\s+(\d{3})/i,
+                                        calc: (m, desc = '') => {
+                                            const ancho = Number(m[1]); const perfil = Number(m[2]); const rin = Number(m[3]);
+                                            const indice = Number(m[4]);
+                                            const base = (ancho * perfil/100 * rin/25.4) * 0.25;
+                                            let factor = indice > 100 ? 1.4 : 1;
+                                            if (desc.includes('XL') || desc.includes('EXTRA LOAD')) factor *= 0.50;
+                                            if (desc.includes('REFORZADA') || desc.includes('REINFORCED')) factor *= 0.50;
+                                            if (desc.includes('HEAVY DUTY') || desc.includes('HD')) factor *= 0.50;
+                                            if (desc.includes('COMERCIAL') || desc.includes('COMMERCIAL')) factor *= 0.50;
+                                            return { peso: base * factor, tipo: 'CARGA_ALTA' };
+                                        }
                                     }
-                                } catch (e) {
-                                    console.warn('[ERROR PESO]', e);
+                                ];
+
+                                let resultado = null;
+                                for (const patron of patrones) {
+                                    const match = desc.match(patron.regex);
+                                    if (match) {
+                                        resultado = patron.calc(match, desc);
+                                        break;
+                                    }
                                 }
+
+                                if (resultado && resultado.peso > 0) {
+                                    let pesoBase = resultado.peso;
+                                    let tipoBase = resultado.tipo || 'AUTO';
+
+                                    const factoresAjuste = {
+                                        'XL': 0.50, 'RF': 0.50, 'PR': 0.50, 'SKS': 0.50, 'L5': 0.50,
+                                        'SOLID': 0.50, 'HT': 0.50, 'AT': 0.50, 'MT': 0.50, 'TRACCION': 0.50,
+                                        'DIRECCION': 0.50, 'COMERCIAL': 0.50, 'PERFOR': 0.50, 'EFFICIENT': 0.50, 'MIXTA': 0.50
+                                    };
+
+                                    let factorTotal = 1.0;
+                                    for (const [clave, factor] of Object.entries(factoresAjuste)) {
+                                        if (desc.includes(clave)) factorTotal *= factor;
+                                    }
+
+                                    const capasMatch = desc.match(/\((\d{1,2})\)/);
+                                    if (capasMatch) {
+                                        const capas = Number(capasMatch[1]);
+                                        if (capas > 8) factorTotal *= (1 + (capas-8)*0.05);
+                                    }
+
+                                    if (desc.includes('STEEL')) factorTotal *= 0.50;
+                                    if (desc.includes('RADIAL')) factorTotal *= 0.50;
+                                    if (desc.includes('NYLON')) factorTotal *= 0.50;
+
+                                    peso = pesoBase * factorTotal;
+                                    peso = Math.round(peso * 100) / 100;
+                                    console.log(`[PESO CALCULADO] ${codigo}: ${peso.toFixed(2)} kg (tipo: ${tipoBase})`);
+                                }
+                            } catch (e) {
+                                console.warn('[ERROR PESO]', e);
                             }
                         }
 
@@ -14504,16 +14878,63 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
                         };
                         const lineaVal = lineaFromFields || inferLineaFromDescripcion(descripcion) || 'Sin línea';
 
+                        // ASEGURAR VALORES DE VOLUMEN Y PESO - Validar que siempre tengan números válidos
+                        let volumenFinal = volumen;
+                        let pesoFinal = peso;
+
+                        // Si volumen sigue siendo 0 o no es válido después del cálculo, intenta una última vez
+                        if (!volumenFinal || volumenFinal === 0 || isNaN(volumenFinal)) {
+                            console.warn(`[⚠️ VOLUMEN INVÁLIDO] Código: ${codigo}, usando valor por defecto...`);
+                            const defaults = calcularValoresPorDefecto(descripcion);
+                            volumenFinal = defaults.volumen;
+                        }
+
+                        // Si peso sigue siendo 0 o no es válido después del cálculo, intenta una última vez
+                        if (!pesoFinal || pesoFinal === 0 || isNaN(pesoFinal)) {
+                            console.warn(`[⚠️ PESO INVÁLIDO] Código: ${codigo}, usando valor por defecto...`);
+                            const defaults = calcularValoresPorDefecto(descripcion);
+                            pesoFinal = defaults.peso;
+                        }
+                        // Intentar forzar cálculo usando funciones auxiliares (siempre preferir cálculo consistente)
+                        try {
+                            const volCalc = await calcularVolumenLlanta(descripcion || '');
+                            if (volCalc && !isNaN(volCalc) && Number(volCalc) > 0) volumenFinal = Number(volCalc);
+                        } catch (e) {
+                            console.warn('[ERROR CALC VOLUMEN AUX]', e);
+                        }
+                        try {
+                            const pesoCalc = await calcularPesoLlanta(descripcion || '');
+                            if (pesoCalc && !isNaN(pesoCalc) && Number(pesoCalc) > 0) pesoFinal = Number(pesoCalc);
+                        } catch (e) {
+                            console.warn('[ERROR CALC PESO AUX]', e);
+                        }
+
+                        // Validar que SIEMPRE tenga valores positivos o al menos con los defaults
+                        volumenFinal = Math.max(0.0100, Number(volumenFinal) || 0.0100);
+                        pesoFinal = Math.max(5, Number(pesoFinal) || 10);
+
+                        console.log(`[VALORES FINALES] ${codigo}: Volumen=${volumenFinal.toFixed(4)}m³, Peso=${pesoFinal.toFixed(2)}kg`);
+
+                        // Guardar SIN CAMBIOS en la escritura - mantener exactamente como vienen
                         const nuevoProducto = {
                             clave: codigo,
-                            descripcion: descripcion,
-                            volumen: volumen > 0 ? volumen.toFixed(4) : '0.0000',
-                            peso: peso > 0 ? peso.toFixed(2) : '0.00',
+                            descripcion: producto.Descripción || producto.descripcion || descripcion,
+                            volumen: volumenFinal.toFixed(4),
+                            peso: pesoFinal.toFixed(2),
                             valor: parseNumber(producto.Valor || producto.valor || 0).toFixed(2),
                             linea: lineaVal
                         };
 
+                        // Preservar campos originales sin modificar (si existen)
+                        if (producto.Código) nuevoProducto.Código = producto.Código;
+                        if (producto.Descripción) nuevoProducto.Descripción = producto.Descripción;
+                        if (producto.Volumen) nuevoProducto.Volumen = producto.Volumen;
+                        if (producto.Peso) nuevoProducto.Peso = producto.Peso;
+                        if (producto.Valor) nuevoProducto.Valor = producto.Valor;
+                        if (producto.Línea) nuevoProducto.Línea = producto.Línea;
+
                         console.log('[OBJETO A GUARDAR]', nuevoProducto);
+                        console.log(`[✅ CONFIRMACIÓN] ${codigo} tendrá volumen=${nuevoProducto.volumen}m³ y peso=${nuevoProducto.peso}kg`);
 
                         // Intentar guardar en SheetDB (POST) y sólo si es exitoso lo consideramos agregado
                         let guardadoEnSheetDB = false;
@@ -14541,8 +14962,15 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
 
                         if (guardadoEnSheetDB) {
                             guardadosConExito.push(nuevoProducto);
+                            codigosGuardados.add(identificadorProducto); // Marcar como guardado para evitar duplicados (código + descripción)
+                            // Verificación: confirmar que siempre tiene valores
+                            if (!nuevoProducto.volumen || nuevoProducto.volumen === '0.0000' || nuevoProducto.peso === '0.00') {
+                                console.error(`[❌ CRÍTICO] ${codigo} | ${descripcion} se guardó pero sin volumen/peso válidos. Vol=${nuevoProducto.volumen}, Peso=${nuevoProducto.peso}`);
+                            } else {
+                                console.log(`[✅ VALIDADO] ${codigo} | ${descripcion} guardado correctamente con Vol=${nuevoProducto.volumen}m³, Peso=${nuevoProducto.peso}kg`);
+                            }
                         } else {
-                            console.warn(`[NO GUARDADO] ${codigo} no se pudo persistir en SheetDB`);
+                            console.warn(`[NO GUARDADO] ${codigo} | ${descripcion} no se pudo persistir en SheetDB`);
                         }
                     } catch (e) {
                         console.error('[ERROR GENERAL]', e);
@@ -14562,8 +14990,13 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
                 }
             }
             
-            // Acumular las nuevas llantas con las existentes
-            llantasAcumuladasEnBloque = llantasAcumuladasEnBloque.concat(llantasParaAgregar);
+            // Acumular las nuevas llantas con las existentes (evitar duplicados por código+descripción)
+            if (!Array.isArray(llantasAcumuladasEnBloque)) llantasAcumuladasEnBloque = [];
+            for (const l of llantasParaAgregar) {
+                const idL = normalizarIdentificador(l.Código || l.codigo || l.clave || '', l.Descripción || l.descripcion || l.nombre || '');
+                const existeEnAcumulado = llantasAcumuladasEnBloque.some(x => normalizarIdentificador(x.Código || x.codigo || x.clave || x.Clave || x.ID || '', x.Descripción || x.descripcion || x.nombre || '') === idL);
+                if (!existeEnAcumulado) llantasAcumuladasEnBloque.push(l);
+            }
             
             // Actualizar la tabla con todas las llantas acumuladas
             actualizarTablaLlantasBloque(llantasAcumuladasEnBloque);
@@ -14588,12 +15021,24 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
                         <strong>✅ Productos ya existentes en INVENTARIO:</strong>
                         <div style="margin-top: 8px; font-size: 0.95em;">${productosYaExistentes.length} unidades</div>
                     </div>
+
+                    ${codigosGuardados.size !== productosNuevos.length ? `
+                        <div style="background: #fff3cd; padding: 12px; border-radius: 6px; margin-top: 12px; border-left: 4px solid #ffc107;">
+                            <strong>⚠️ Duplicados evitados:</strong>
+                            <div style="margin-top: 8px; font-size: 0.95em;">${productosNuevos.length - codigosGuardados.size} productos (no se agregaron)</div>
+                        </div>
+                    ` : ''}
                     
                     ${productosNuevos.length > 0 ? `
                         <div style="background: #e3f2fd; padding: 12px; border-radius: 6px; margin-top: 12px; border-left: 4px solid #2196f3;">
-                            <strong>🆕 Productos nuevos agregados:</strong>
+                            <strong>🆕 Productos nuevos agregados (${codigosGuardados.size}):</strong>
                             <ul style="margin: 8px 0; padding-left: 20px; font-size: 0.9em;">
-                                ${productosNuevos.map(p => `
+                                ${productosNuevos.filter((p, idx) => {
+                                    const cod = p.Código || p.codigo || p.clave || '';
+                                    const desc = p.Descripción || p.descripcion || p.nombre || '';
+                                    const ident = normalizarIdentificador(cod, desc);
+                                    return codigosGuardados.has(ident);
+                                }).map(p => `
                                     <li>${p.Código || p.codigo || 'Sin código'} - ${p.Descripción || p.descripcion || 'Sin descripción'}</li>
                                 `).join('')}
                             </ul>
@@ -14601,7 +15046,7 @@ async function agregarBloqueEnModo(continuarAgregando = true) {
                     ` : ''}
                     
                     <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #ddd; color: #666; font-size: 0.9em;">
-                        <strong>Total acumulado en bloque:</strong> ${llantasAcumuladasEnBloque.length} partidas
+                        <strong>Resumen:</strong> ${llantasParaAgregar.length} totales | ${codigosGuardados.size} nuevas agregadas | ${productosYaExistentes.length} ya existentes
                     </div>
                 </div>
             `;
