@@ -1483,6 +1483,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 async function recalcularDistribucionCompleta(distribucion, unidadesFlota, options = {}) {
                     console.log('🔄 Recalculando distribución completa...', options);
                     
+                    // === NUEVA LÓGICA: RESPETAR UNIDADES BLOQUEADAS ===
+                    const respetarBloqueados = options.respetarBloqueados || false;
+                    const unidadesBloquedadas = window.unidadesBloquedadas || {};
+                    console.log('[BLOQUEO] Unidades bloqueadas actualmente:', Object.keys(unidadesBloquedadas));
+                    
+                    // Si hay bloqueados y se solicita respetarlos, extraerlos de distribucion
+                    let distribucionBloqueada = [];
+                    let distribucionParaRedistribuir = [];
+                    
+                    if (respetarBloqueados && Object.keys(unidadesBloquedadas).length > 0) {
+                        for (const item of distribucion) {
+                            if (unidadesBloquedadas[item.economico]) {
+                                console.log(`[MANTENER] ${item.economico} será mantenido como estaba (${item.llantasEstimadas} llantas)`);
+                                distribucionBloqueada.push({ ...item }); // copiar para no mutar original
+                            } else {
+                                distribucionParaRedistribuir.push(item);
+                            }
+                        }
+                    } else {
+                        distribucionParaRedistribuir = [...distribucion];
+                    }
+                    
+                    console.log(`[BLOQUEO] ${distribucionBloqueada.length} unidades bloqueadas, ${distribucionParaRedistribuir.length} a redistribuir`);
+                    
                     // Calcular totales de llantas disponibles
                     const llantasOriginales = llantasAcumuladasEnBloque || [];
                     if (llantasOriginales.length === 0) {
@@ -1505,7 +1529,28 @@ document.addEventListener('DOMContentLoaded', function() {
                         llantasTotal += cant;
                     });
 
-                    console.log('📊 Totales disponibles:', {
+                    console.log('📊 Totales disponibles (ANTES de restar bloqueadas):', {
+                        volumen: volumenTotal.toFixed(3),
+                        peso: pesoTotal.toFixed(2),
+                        llantas: llantasTotal
+                    });
+
+                    // RESTAR las llantas ya asignadas a unidades bloqueadas
+                    if (distribucionBloqueada.length > 0) {
+                        for (const bloqueada of distribucionBloqueada) {
+                            const llantasEnBloqueada = bloqueada.llantasEstimadas || 0;
+                            const volumenEnBloqueada = bloqueada.volumen || 0;
+                            const pesoEnBloqueada = bloqueada.peso || 0;
+                            
+                            llantasTotal -= llantasEnBloqueada;
+                            volumenTotal -= volumenEnBloqueada;
+                            pesoTotal -= pesoEnBloqueada;
+                            
+                            console.log(`[BLOQUEO] Restando ${llantasEnBloqueada} llantas (${volumenEnBloqueada.toFixed(3)}m³, ${pesoEnBloqueada.toFixed(2)}kg) de ${bloqueada.economico}`);
+                        }
+                    }
+
+                    console.log('📊 Totales DISPONIBLES para redistribuir:', {
                         volumen: volumenTotal.toFixed(3),
                         peso: pesoTotal.toFixed(2),
                         llantas: llantasTotal
@@ -1518,6 +1563,30 @@ document.addEventListener('DOMContentLoaded', function() {
                         volumenUnitario: (l.volumenUnitario || l.Volumen || l.Volumen_m3 || l['Volumen (m3)']) || 0,
                         pesoUnitario: (l.pesoUnitario || l.Peso || l['Peso (kg)'] || l.peso) || 0
                     }));
+
+                    // RESTAR de llantasDisponibles las que ya fueron asignadas a unidades bloqueadas
+                    if (distribucionBloqueada.length > 0) {
+                        for (const bloqueada of distribucionBloqueada) {
+                            if (bloqueada.llantas && Array.isArray(bloqueada.llantas)) {
+                                for (const llantaBloqueada of bloqueada.llantas) {
+                                    const desc = llantaBloqueada.descripcion || '';
+                                    const cant = llantaBloqueada.cantidad || 0;
+                                    
+                                    // Buscar y reducir en llantasDisponibles
+                                    for (let i = 0; i < llantasDisponibles.length; i++) {
+                                        const disponible = llantasDisponibles[i];
+                                        const descDisponible = disponible.Descripción || disponible.descripcion || '';
+                                        
+                                        if (descDisponible === desc || descDisponible.includes(desc) || desc.includes(descDisponible)) {
+                                            llantasDisponibles[i].cantidadPendiente = Math.max(0, disponible.cantidadPendiente - cant);
+                                            console.log(`[BLOQUEO] Restando ${cant} de "${desc}" de llantas disponibles (quedan: ${llantasDisponibles[i].cantidadPendiente})`);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // Calcular vol/peso unitario faltante usando funciones auxiliares si existen
                     for (let ll of llantasDisponibles) {
@@ -1752,7 +1821,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     console.log('🔄 Distribución recalculada:', distribucionNueva);
-                    return distribucionNueva;
+                    
+                    // === RETORNAR: PRIMERO BLOQUEADOS (FIJOS), LUEGO REDISTRIBUIDOS (SIN DUPLICADOS) ===
+                    // Evitar duplicados: si una unidad ya está en bloqueados, no agregarla de nuevo desde distribucionNueva
+                    const economicosBloqueados = new Set(distribucionBloqueada.map(d => String(d.economico)));
+                    const distribucionNuevaSinDuplicados = distribucionNueva.filter(d => !economicosBloqueados.has(String(d.economico)));
+                    
+                    const distribucionFinal = [...distribucionBloqueada, ...distribucionNuevaSinDuplicados];
+                    console.log(`[BLOQUEO] Distribución final: ${distribucionBloqueada.length} bloqueadas + ${distribucionNuevaSinDuplicados.length} redistribuidas (sin duplicados) = ${distribucionFinal.length} total`);
+                    return distribucionFinal;
                 }
 
                 // Actualiza los totales (volumen/peso) mostrados en la UI
@@ -1868,7 +1945,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Actualizar totales generales tras renderizar la tabla
                     try { actualizarTotalesDistribucion(distribucion); } catch(e) { console.warn(e); }
 
-                    // Agregar manejadores para los selects
+                    // Inicializar unidadesBloquedadas como objeto global si no existe
+                    if (typeof window.unidadesBloquedadas === 'undefined') {
+                        window.unidadesBloquedadas = {};
+                        console.log('[BLOQUEO] Inicializado objeto de unidades bloqueadas');
+                    }
+
+                    // Agregar manejadores para los selects con sistema de bloqueo
                     setTimeout(() => {
                         const selects = tbody.querySelectorAll('.select-unidad');
                         selects.forEach(select => {
@@ -1886,11 +1969,25 @@ document.addEventListener('DOMContentLoaded', function() {
                                     const unidadNueva = unidadesFlota.find(u => String(u.codigo) === String(nuevoEconomico));
                                     itemActual.economico = nuevoEconomico;
                                     itemActual.unidad = unidadNueva ? unidadNueva.nombre : itemActual.unidad;
+                                    
+                                    // === BLOQUEAR ESTA UNIDAD CON SU CANTIDAD ACTUAL ===
+                                    window.unidadesBloquedadas[nuevoEconomico] = {
+                                        economico: nuevoEconomico,
+                                        llantasAsignadas: itemActual.llantasEstimadas || 0,
+                                        volumen: itemActual.volumen || 0,
+                                        peso: itemActual.peso || 0,
+                                        unidad: itemActual.unidad,
+                                        bloqueadoEn: new Date().toLocaleTimeString()
+                                    };
+                                    console.log(`[✅ BLOQUEADO] Unidad ${nuevoEconomico} bloqueada con ${itemActual.llantasEstimadas} llantas`, window.unidadesBloquedadas[nuevoEconomico]);
                                 }
 
-                                // Recalcular distribución completa (ahora async)
-                                console.log('📦 Cambio de unidad detectado. Recalculando...');
-                                const distribucionRecalculada = await recalcularDistribucionCompleta(distribucion, unidadesFlota, { prioritizeEconomico: nuevoEconomico });
+                                // Recalcular distribución completa (ahora respeta bloqueados)
+                                console.log('📦 Cambio de unidad detectado. Recalculando (respetando bloqueados)...');
+                                const distribucionRecalculada = await recalcularDistribucionCompleta(distribucion, unidadesFlota, { 
+                                    prioritizeEconomico: nuevoEconomico,
+                                    respetarBloqueados: true
+                                });
                                 
                                 // Actualizar array global
                                 distribucion.length = 0;
@@ -1902,7 +1999,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 // Actualizar totales visibles
                                 try { actualizarTotalesDistribucion(distribucion); } catch(e){ console.warn(e); }
 
-                                console.log('✅ Tabla actualizada');
+                                console.log('✅ Tabla actualizada (bloqueados respetados)');
                             };
                             select._changeHandler = handler;
                             select.addEventListener('change', handler);
