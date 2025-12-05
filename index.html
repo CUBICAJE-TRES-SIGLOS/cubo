@@ -2524,6 +2524,32 @@ function safeNum(v) {
         }
     }
 
+    // Sanitiza descripciones para la pestaña de Facturas: elimina un token final corto
+    // típicamente del tipo 'H87' o 'AB123' que aparece pegado al final del texto.
+    // Sólo afecta la visualización en la pestaña de Facturas.
+    function sanitizeFacturaDesc(s) {
+        if (!s && s !== 0) return '';
+        try {
+            let str = String(s).trim();
+            if (!str) return '';
+            // Quitar puntuación final
+            str = str.replace(/[\)\]\.,;:\s]+$/g, '');
+            const parts = str.split(/\s+/);
+            if (parts.length === 0) return str;
+            let last = parts[parts.length - 1];
+            // limpiar paréntesis o símbolos remanentes
+            last = last.replace(/^[\(\-\_]+|[\)\-\_]+$/g, '');
+            // Si el último token es un código corto alfanumérico como H87, AB123, etc., lo removemos
+            if (/^[A-Z]{1,5}\d{1,5}$/i.test(last)) {
+                parts.pop();
+                return parts.join(' ').trim();
+            }
+            return str;
+        } catch (e) {
+            return String(s).trim();
+        }
+    }
+
 // ========== AUTOCOMPLETADO GENÉRICO PARA BLOQUES ==========
 async function autocompletarBuscaBloques(inputId, dropdownId) {
     const inputElement = document.getElementById(inputId);
@@ -9629,26 +9655,27 @@ async function cargarEscaneosGuardados(filtro = '', silencioso = false) {
                         </button>
                     </div>
                     <div class="card-body">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Archivo</th>
-                                    <th>Fecha</th>
-                                    <th>Código</th>
-                                    <th>Descripción</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${escaneosAgrupados[nombre].map(item => `
-                                    <tr>
-                                        <td>${item.Archivo || ''}</td>
-                                        <td>${item.Fecha || ''}</td>
-                                        <td>${item.Código || ''}</td>
-                                        <td>${item.Descripción || ''}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                        <details>
+                            <summary>Ver ${escaneosAgrupados[nombre].length} artículo(s)</summary>
+                            <ul class="list-group list-group-flush mt-2">
+                                ${escaneosAgrupados[nombre].map(item => {
+                                    const descRaw = item['Descripción'] || item.Descripcion || item.Descrip || '';
+                                    const descSan = sanitizeFacturaDesc(descRaw);
+                                    const codigo = item['Código'] || item.Codigo || item.CODIGO || '';
+                                    const archivo = item.Archivo || '';
+                                    const fecha = item.Fecha || '';
+                                    return `
+                                    <li class="list-group-item">
+                                        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                                            <div><strong>Código:</strong> ${codigo}</div>
+                                            <div><strong>Archivo:</strong> ${archivo}</div>
+                                            <div><strong>Fecha:</strong> ${fecha}</div>
+                                        </div>
+                                        <div style="margin-top:6px;"><strong>Descripción:</strong> ${descSan || ''}</div>
+                                    </li>
+                                `}).join('')}
+                            </ul>
+                        </details>
                     </div>
                 </div>
             `).join('');
