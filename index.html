@@ -4364,9 +4364,14 @@ async function procesarBloquetraspasos(datos) {
         } else {
             // Si la llanta no existe en INVENTARIO, agregar una entrada temporal al pedido
             console.log(`      ⚠️ NO encontrado en INVENTARIO. Calculando volumen/peso...`);
-            const volumenCalc = Number(await calcularVolumenLlanta(descripcionProd)) || 0;
-            const pesoCalc = Number(await calcularPesoLlanta(descripcionProd)) || 0;
-            console.log(`      Valores calculados: volumen=${volumenCalc}, peso=${pesoCalc}`);
+            let volumenCalc = Number(await calcularVolumenLlanta(descripcionProd)) || 0;
+            let pesoCalc = Number(await calcularPesoLlanta(descripcionProd)) || 0;
+            
+            // Si las calculadoras devolvieron 0, usar valores por defecto
+            if (!volumenCalc || volumenCalc === 0) volumenCalc = 0.030; // 30 litros por defecto
+            if (!pesoCalc || pesoCalc === 0) pesoCalc = 10; // 10 kg por defecto
+            
+            console.log(`      Valores calculados/default: volumen=${volumenCalc}m³, peso=${pesoCalc}kg`);
 
             productosNuevos++;
             pedidosEnCurso.push({
@@ -4378,14 +4383,16 @@ async function procesarBloquetraspasos(datos) {
                 volumen: volumenCalc * cantidad,
                 valor: 0
             });
-            console.log(`      ✨ Agregado temporal al pedido (sin INVENTARIO)`);
+            console.log(`      ✨ Agregado temporal al pedido (sin INVENTARIO) con Vol=${volumenCalc * cantidad}m³, Peso=${pesoCalc * cantidad}kg`);
 
             // Preparar para agregar al INVENTARIO (si tiene código y descripción)
             if (codigoProd && descripcionProd) {
                 nuevosParaINVENTARIO.push({
                     Código: codigoProd,
                     Descripción: descripcionProd,
-                    Cantidad: cantidad
+                    Cantidad: cantidad,
+                    volumen: volumenCalc,
+                    peso: pesoCalc
                 });
             }
         }
@@ -8201,7 +8208,7 @@ function searchINVENTARIO() {
         }
     }
 }
-function agregarPedido() {
+async function agregarPedido() {
     if (!pedidoCamion) {
         alert("Ingrese un número económico válido de camión primero.");
         return;
@@ -8215,10 +8222,33 @@ function agregarPedido() {
         return;
     }
 
-    const llanta = INVENTARIO.find(item => item.clave.toString() === codigo);
+    let llanta = INVENTARIO.find(item => item.clave.toString() === codigo);
     if (!llanta) {
-        alert("Llanta no encontrada en INVENTARIO.");
-        return;
+        // Intenta buscar por descripción si la búsqueda por código falla
+        const desc = document.getElementById('pedidoDescripcionLlantaInput').value.trim();
+        if (desc) {
+            llanta = INVENTARIO.find(item => (item.descripcion || '').toLowerCase().includes(desc.toLowerCase()));
+        }
+        if (!llanta) {
+            // Si aún no existe en INVENTARIO, crear una entrada temporal calculada
+            const descripcionTemp = document.getElementById('pedidoDescripcionLlantaInput').value.trim() || codigo;
+            let volumenTemp = Number(await calcularVolumenLlanta(descripcionTemp)) || 0;
+            let pesoTemp = Number(await calcularPesoLlanta(descripcionTemp)) || 0;
+            
+            // Aplicar defaults si cálculo devolvió 0
+            if (!volumenTemp || volumenTemp === 0) volumenTemp = 0.030;
+            if (!pesoTemp || pesoTemp === 0) pesoTemp = 10;
+            
+            llanta = {
+                clave: codigo,
+                descripcion: descripcionTemp,
+                linea: determinarTipoLlanta(descripcionTemp),
+                peso: pesoTemp,
+                volumen: volumenTemp,
+                valor: 0
+            };
+            console.warn(`[TEMPORAL] Creado item temporal para código ${codigo}: vol=${volumenTemp}m³, peso=${pesoTemp}kg`);
+        }
     }
 
     // Calcular volumen y peso adicional
