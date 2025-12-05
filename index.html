@@ -695,7 +695,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </header>
 
 <nav>   
-    <button class="tablink active" data-tab="INVENTARIO">INVENTARIO</button>
+    <button class="tablink active" data-tab="inventario">inventario</button>
     <button class="tablink" data-tab="flota">Flota</button>
     <button class="tablink" data-tab="traspasos" onclick="actualizarBloquestraspasos()">Escaneo de traspasos o traspasos</button> 
     <button class="tablink" data-tab="pedidos">Pedidos</button>
@@ -5275,8 +5275,8 @@ async function calcularVolumenINVENTARIO() {
                     volumen_m3 = Math.PI * Math.pow(diametroExterno/2, 2) * medidas.ancho * factorCorreccion * margenLogisticoTipo;
                 } else {
                     // AUTO y otros
-                    factorCorreccion = 1.10;
-                    margenLogisticoTipo = 1.10;
+                    factorCorreccion = 0.90;
+                    margenLogisticoTipo = 0.90;
                     let alturaFlanco = medidas.perfil * medidas.ancho;
                     let diametroExterno = medidas.rin + 2 * alturaFlanco;
                     volumen_m3 = Math.PI * Math.pow(diametroExterno/2, 2) * medidas.ancho * factorCorreccion * margenLogisticoTipo;
@@ -8395,32 +8395,11 @@ function quitarPedido(idx) {
            tbody.appendChild(tr);
        });
 
-       // Calcular totales
-       let totalCantidad = 0, totalVolumen = 0, totalPeso = 0, totalValor = 0;
-       pedidosEnCurso.forEach(p => {
-           totalCantidad += safeNum(p.cantidad);
-           totalVolumen += safeNum(p.volumen);
-           totalPeso += safeNum(p.peso);
-           totalValor += safeNum(p.valor);
-       });
-
-       // Mostrar totales
-      const totalesPedidoElement = document.getElementById('totalesPedido');
-      if (totalesPedidoElement) {
-          totalesPedidoElement.innerText = `
-              Total cantidad: ${totalCantidad.toLocaleString('es-MX')} | 
-              Total volumen: ${totalVolumen.toLocaleString('es-MX', 
-              { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³ | 
-              Total peso: ${totalPeso.toLocaleString('es-MX', 
-              { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg | 
-              Total valor: $${totalValor.toLocaleString('es-MX', 
-              { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          `.replace(/\s+/g, ' ').trim();
-      }
-
-      // Actualizar gráficas y verificar capacidad
-      actualizarGraficas();
-      verificarCapacidad(totalVolumen, totalPeso);
+       // Calcular y mostrar totales (centralizado)
+       const totales = calcularTotalesPedidos();
+       // Actualizar gráficas y verificar capacidad
+       actualizarGraficas();
+       verificarCapacidad(totales.totalVolumen, totales.totalPeso);
    }
    // ...existing code...
 // Después de renderPedidosActuales() y antes de actualizarGraficas()
@@ -8470,6 +8449,39 @@ function toggleVerificacionRapida() {
         boton.innerHTML = '<i class="bi bi-calculator"></i> Mostrar Calculadora Rápida';
         boton.classList.replace('btn-secondary', 'btn-info');
     }
+}
+
+// Calcula totales del pedido de forma centralizada y actualiza la UI
+function calcularTotalesPedidos() {
+    let totalCantidad = 0, totalVolumen = 0, totalPeso = 0, totalValor = 0;
+    pedidosEnCurso.forEach(p => {
+        totalCantidad += Number(safeNum(p.cantidad) || 0);
+        totalVolumen += Number(safeNum(p.volumen) || 0);
+        totalPeso += Number(safeNum(p.peso) || 0);
+        totalValor += Number(safeNum(p.valor) || 0);
+    });
+
+    const totalesPedidoElement = document.getElementById('totalesPedido');
+    if (totalesPedidoElement) {
+        totalesPedidoElement.innerText = `Total cantidad: ${totalCantidad.toLocaleString('es-MX')} | Total volumen: ${totalVolumen.toLocaleString('es-MX', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³ | Total peso: ${totalPeso.toLocaleString('es-MX', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg | Total valor: $${totalValor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        // también guardamos los valores numéricos en dataset para uso programático
+        totalesPedidoElement.dataset.cantidad = String(totalCantidad);
+        totalesPedidoElement.dataset.volumen = String(totalVolumen);
+        totalesPedidoElement.dataset.peso = String(totalPeso);
+        totalesPedidoElement.dataset.valor = String(totalValor);
+    }
+
+    // Log de verificación si hay discrepancias (avisos para depuración)
+    pedidosEnCurso.forEach(p => {
+        if ((!p.volumen || Number(safeNum(p.volumen)) === 0) && Number(safeNum(p.cantidad)) > 0) {
+            console.warn('Pedido item sin volumen:', p.clave || p.descripcion, p);
+        }
+        if ((!p.peso || Number(safeNum(p.peso)) === 0) && Number(safeNum(p.cantidad)) > 0) {
+            console.warn('Pedido item sin peso:', p.clave || p.descripcion, p);
+        }
+    });
+
+    return { totalCantidad, totalVolumen, totalPeso, totalValor };
 }
 // Agregar después de las funciones existentes
 function verificacionRapida() {
