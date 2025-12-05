@@ -10237,48 +10237,66 @@ function mostrarAlertaCapacidad(espacioRestante, pesoRestante, pctVolumen, pctPe
 
     alerta.style.borderColor = colorAlerta;
 
-    // Clasificar pedidos actuales con patrones mejorados
-    const resumenPedidos = pedidosEnCurso.reduce((acc, pedido) => {
+    // Construir un resumen por categoría más completo (cantidad, volumen y peso)
+    const passengerPattern = /\b\d{2,3}\/\d{2}\s*R\d{2}\b|\bR\d{2}\b/;
+    const agrPattern = /\b(AGRICOLA|TRACTOR|R-1|R1|AGR[IÍ]COLA?)\b/;
+    // Detecta tamaños específicos y también formatos generales tipo "11R24.5" (número + 'R' + número[.decimal])
+    const truckPattern = /\b(CAMION|TRAILER|22\.5|24\.5|17\.5|19\.5|11R|\d{1,3}R\d{1,3}(?:\.\d+)?|295\/80|315\/80)\b/;
+    const otrPattern = /\b(OTR|INDUSTRIAL|L-[2-5]|E-[2-4]|25"|33"|35"|49"|SKS|CT85)\b/;
+    const suvPattern = /\b(4X4|\bAT\b|\bMT\b|\bLT\b|SUV|PICKUP)\b/;
+    const autoPattern = /\b(AUTO|COCHE|CAR|PASSENGER)\b/;
+
+    const categoriaOrden = ['AGRICOLA','OTR/INDUSTRIAL','CAMION','CAMIONETA/SUV','AUTO','OTROS'];
+    const categoriaLabels = {
+        'AGRICOLA': 'Agrícola',
+        'OTR/INDUSTRIAL': 'OTR/Industrial',
+        'CAMION': 'Camión',
+        'CAMIONETA/SUV': 'Camioneta/SUV',
+        'AUTO': 'Auto',
+        'OTROS': 'Otros'
+    };
+
+    const resumenPedidos = {};
+    pedidosEnCurso.forEach(pedido => {
         const desc = (pedido.descripcion || '').toUpperCase();
         const linea = (pedido.linea || '').toUpperCase();
-        let categoria;
+        const cantidad = Number(pedido.cantidad) || 0;
+        const pesoLinea = Number(safeNum(pedido.peso)) || 0;
+        const volumenLinea = Number(safeNum(pedido.volumen)) || 0;
 
-        // Heurísticas mejoradas y con límites de palabra para evitar falsos positivos.
-        // Patrones claros para llantas de pasajero (ej. 175/70 R14, 205/55 R16)
-        const passengerPattern = /\b\d{2,3}\/\d{2}\s*R\d{2}\b|\bR\d{2}\b/;
-        // Palabras clave explícitas para agrícola
-        const agrPattern = /\b(AGRICOLA|TRACTOR|R-1|R1|AGR[IÍ]COLA?)\b/;
-        // Palabras/medidas típicas de camión
-        const truckPattern = /\b(CAMION|TRAILER|22\.5|24\.5|17\.5|19\.5|11R|\d{2,3}R22\.5|295\/80|315\/80)\b/;
-        // OTR / industrial
-        const otrPattern = /\b(OTR|INDUSTRIAL|L-[2-5]|E-[2-4]|25"|33"|35"|49"|SKS|CT85)\b/;
-        // SUV / pickup / all-terrain
-        const suvPattern = /\b(4X4|\bAT\b|\bMT\b|\bLT\b|SUV|PICKUP)\b/;
-        // Palabras explícitas para auto
-        const autoPattern = /\b(AUTO|COCHE|CAR|PASSENGER)\b/;
+        // Puntaje por coincidencias en patrones; la prioridad está en el orden de categoriaOrden
+        const scores = {
+            'AGRICOLA': (agrPattern.test(desc) || linea.includes('AGRICOLA')) ? 2 : 0,
+            'OTR/INDUSTRIAL': (otrPattern.test(desc) || linea.includes('OTR')) ? 2 : 0,
+            'CAMION': (truckPattern.test(desc) || linea.includes('CAMION')) ? 2 : 0,
+            'CAMIONETA/SUV': (suvPattern.test(desc) || suvPattern.test(linea)) ? 1 : 0,
+            'AUTO': (passengerPattern.test(desc) || autoPattern.test(desc) || linea.includes('AUTO')) ? 1 : 0
+        };
 
-        // Priorizar detección de llantas de pasajero basadas en el patrón de medida,
-        // siempre y cuando no aparezcan indicadores fuertes de agrícola/camión/OTR.
-        if (passengerPattern.test(desc) && !agrPattern.test(desc) && !truckPattern.test(desc) && !otrPattern.test(desc)) {
-            categoria = 'AUTO';
-        } else if (agrPattern.test(desc) || linea.includes('AGRICOLA')) {
-            categoria = 'AGRICOLA';
-        } else if (truckPattern.test(desc) || linea.includes('CAMION')) {
-            categoria = 'CAMION';
-        } else if (otrPattern.test(desc) || linea.includes('OTR')) {
-            categoria = 'OTR/INDUSTRIAL';
-        } else if (suvPattern.test(desc) || linea.includes('4X4')) {
-            categoria = 'CAMIONETA/SUV';
-        } else if (autoPattern.test(desc) || linea.includes('AUTO')) {
-            categoria = 'AUTO';
-        } else {
-            categoria = 'OTROS';
+        // Seleccionar mejor categoría según puntuación y prioridad
+        let categoria = 'OTROS';
+        let maxScore = -1;
+        for (const cat of categoriaOrden) {
+            const score = scores[cat] || 0;
+            if (score > maxScore) { maxScore = score; categoria = cat; }
         }
 
-        if (!acc[categoria]) acc[categoria] = 0;
-        acc[categoria] += pedido.cantidad;
-        return acc;
-    }, {});
+        if (!resumenPedidos[categoria]) resumenPedidos[categoria] = { cantidad: 0, peso: 0, volumen: 0 };
+        resumenPedidos[categoria].cantidad += cantidad;
+        resumenPedidos[categoria].peso += pesoLinea;
+        resumenPedidos[categoria].volumen += volumenLinea;
+    });
+
+    // Construir HTML resumido por categoría (cantidad, volumen, peso)
+    const resumenHtml = categoriaOrden.map(cat => {
+        const r = resumenPedidos[cat];
+        if (!r || r.cantidad === 0) return '';
+        return `
+            <p style="margin:3px 0;font-size:14px;">
+                <b>${categoriaLabels[cat]}:</b> ${r.cantidad} llantas — Vol: ${Number(r.volumen).toLocaleString('es-MX', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³, Peso: ${Number(r.peso).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
+            </p>
+        `;
+    }).join('');
 
     alerta.innerHTML = `
         <button onclick="this.parentElement.remove()">×</button>
@@ -10286,13 +10304,7 @@ function mostrarAlertaCapacidad(espacioRestante, pesoRestante, pctVolumen, pctPe
             ${nivelAlerta}
         </h4>
         <div style="background:#f5f5f5;padding:12px;border-radius:4px;margin-bottom:10px">
-            ${Object.entries(resumenPedidos)
-                .filter(([_, cantidad]) => cantidad > 0)
-                .map(([categoria, cantidad]) => `
-                    <p style="margin:3px 0;font-size:15px;">
-                        <b>${categoria}:</b> ${cantidad} llantas
-                    </p>
-                `).join('')}
+            ${resumenHtml || '<p style="margin:3px 0;font-size:14px;color:#666;">No hay llantas en el pedido.</p>'}
         </div>
         <div style="margin:5px 0">
             <p style="color:${colorAlerta}">
@@ -15393,7 +15405,7 @@ async function generarPDFPedidosApartados() {
             },
             pagebreak: { mode: 'avoid-all' }
         };
-
+          
         // Generar el PDF con la tabla filtrada
         try {
             await html2pdf().set(opt).from(tempDiv).save();
